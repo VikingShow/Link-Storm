@@ -1,6 +1,7 @@
 ﻿import router from '@ohos.router';
 import Want from '@ohos.app.ability.Want';
 import { common } from '@kit.AbilityKit';
+import fileUri from '@ohos.file.fileuri';
 import { Idea, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
@@ -434,6 +435,36 @@ struct Detail {
     } catch (err) {
       this.status = `打开来源失败：${String(err)}`;
     }
+  }
+
+  private async openAttachment(path: string): Promise<void> {
+    const normalized = this.normalizeAttachmentPath(path);
+    if (!normalized) {
+      this.attachmentStatus = '没有可打开的附件';
+      return;
+    }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const want = new Want();
+    want.action = 'ohos.want.action.viewData';
+    want.entities = ['entity.system.browsable'];
+    want.uri = fileUri.getUriFromPath(normalized);
+    try {
+      await context.startAbility(want);
+      this.attachmentStatus = '已打开附件';
+    } catch (err) {
+      this.attachmentStatus = `打开附件失败：${String(err)}`;
+    }
+  }
+
+  private normalizeAttachmentPath(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (trimmed.startsWith('file://')) {
+      return new fileUri.FileUri(trimmed).path;
+    }
+    return trimmed;
   }
 
   private normalizeSourceUrl(value: string): string {

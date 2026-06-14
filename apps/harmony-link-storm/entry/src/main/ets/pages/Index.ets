@@ -50,6 +50,7 @@ struct Index {
   @State private typeFilter: string = 'all';
   @State private tagFilter: string = '';
   @State private folderFilter: string = 'all';
+  @State private statusFilter: string = 'all';
   @State private selectedIds: string[] = [];
   @State private ideas: Idea[] = [];
   @State private importStatus: string = '';
@@ -481,6 +482,12 @@ struct Index {
         this.FilterButton(IdeaType.HANDWRITING, '手写')
         this.FilterButton(IdeaType.DOCUMENT, '文档')
       }
+      Row({ space: 8 }) {
+        this.StatusButton('all', '全部状态')
+        this.StatusButton('favorite', '收藏')
+        this.StatusButton('archived', '归档')
+        this.StatusButton('active', '未归档')
+      }
 
       if (this.folders.length > 0) {
         Column({ space: 8 }) {
@@ -570,9 +577,18 @@ struct Index {
             .fontSize(12)
             .fontColor('#667085')
           Row({ space: 8 }) {
-            TextInput({ placeholder: '批量文件夹 ID', text: this.batchFolderId })
-              .onChange((value: string) => this.batchFolderId = value)
-              .layoutWeight(1)
+            if (this.folders.length > 0) {
+              ForEach(this.folders, (folder: IdeaFolder) => {
+                Button(folder.name)
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .backgroundColor(this.batchFolderId === folder.id ? '#E0F2EE' : '#FFFFFF')
+                  .fontColor(this.batchFolderId === folder.id ? '#0B4F47' : '#697386')
+                  .onClick(() => this.batchFolderId = folder.id)
+              }, (folder: IdeaFolder) => folder.id)
+            }
+            Button('清空归属')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(() => this.batchFolderId = '')
             Button('移动')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
@@ -582,9 +598,17 @@ struct Index {
               })
           }
           Row({ space: 8 }) {
+            if (this.tagsCatalog.length > 0) {
+              ForEach(this.tagsCatalog, (tag: IdeaTag) => {
+                Button(tag.name)
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .backgroundColor(this.batchTagsInput.includes(tag.name) ? '#E0F2EE' : '#FFFFFF')
+                  .fontColor(this.batchTagsInput.includes(tag.name) ? '#0B4F47' : '#697386')
+                  .onClick(() => this.toggleBatchTag(tag.name))
+              }, (tag: IdeaTag) => tag.id)
+            }
             TextInput({ placeholder: '标签，逗号分隔', text: this.batchTagsInput })
               .onChange((value: string) => this.batchTagsInput = value)
-              .layoutWeight(1)
             Button('添加标签')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
@@ -644,6 +668,15 @@ struct Index {
       .backgroundColor(this.folderFilter === value ? '#E0F2EE' : '#FFFFFF')
       .fontColor(this.folderFilter === value ? '#0B4F47' : '#697386')
       .onClick(() => this.folderFilter = value)
+  }
+
+  @Builder
+  private StatusButton(value: string, label: string) {
+    Button(label)
+      .buttonStyle(ButtonStyleMode.NORMAL)
+      .backgroundColor(this.statusFilter === value ? '#E0F2EE' : '#FFFFFF')
+      .fontColor(this.statusFilter === value ? '#0B4F47' : '#697386')
+      .onClick(() => this.statusFilter = value)
   }
 
   @Builder
@@ -866,6 +899,10 @@ struct Index {
       const typeOk = this.typeFilter === 'all' || idea.type === this.typeFilter;
       const tagOk = !this.tagFilter || idea.tags.includes(this.tagFilter);
       const folderOk = this.folderFilter === 'all' || idea.folderId === this.folderFilter;
+      const statusOk = this.statusFilter === 'all'
+        || (this.statusFilter === 'favorite' && idea.isFavorite)
+        || (this.statusFilter === 'archived' && idea.isArchived)
+        || (this.statusFilter === 'active' && !idea.isArchived);
       const text = [
         idea.title,
         idea.plainText,
@@ -874,12 +911,12 @@ struct Index {
         idea.context.url,
         idea.tags.join(' ')
       ].join(' ').toLowerCase();
-      return typeOk && tagOk && folderOk && (!query || text.includes(query));
+      return typeOk && tagOk && folderOk && statusOk && (!query || text.includes(query));
     });
   }
 
   private hasActiveFilters(): boolean {
-    return this.search.trim().length > 0 || this.typeFilter !== 'all' || this.tagFilter.length > 0 || this.folderFilter !== 'all';
+    return this.search.trim().length > 0 || this.typeFilter !== 'all' || this.tagFilter.length > 0 || this.folderFilter !== 'all' || this.statusFilter !== 'all';
   }
 
   private resetFilters(): void {
@@ -887,6 +924,7 @@ struct Index {
     this.typeFilter = 'all';
     this.tagFilter = '';
     this.folderFilter = 'all';
+    this.statusFilter = 'all';
   }
 
   private isSelected(id: string): boolean {
@@ -912,6 +950,16 @@ struct Index {
 
   private clearSelection(): void {
     this.selectedIds = [];
+  }
+
+  private toggleBatchTag(tag: string): void {
+    const current = new Set(this.batchTagsInput.split(',').map((item: string) => item.trim()).filter((item: string) => item.length > 0));
+    if (current.has(tag)) {
+      current.delete(tag);
+    } else {
+      current.add(tag);
+    }
+    this.batchTagsInput = Array.from(current.values()).join(', ');
   }
 
   private async batchUpdate(patch: Partial<Idea>): Promise<void> {
@@ -1126,6 +1174,9 @@ struct Index {
     }
     if (this.folderFilter !== 'all') {
       parts.push(`文件夹 ${this.folderFilter}`);
+    }
+    if (this.statusFilter !== 'all') {
+      parts.push(`状态 ${this.statusFilter}`);
     }
     return parts.length > 0 ? `当前筛选：${parts.join('，')}` : '当前显示全部记录。';
   }

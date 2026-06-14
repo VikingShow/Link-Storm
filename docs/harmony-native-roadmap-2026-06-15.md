@@ -7,6 +7,7 @@ Date: 2026-06-15
 - `apps/harmony-link-storm/entry` builds successfully with `devecocli build --modules entry`
 - `EntryAbility.onNewWant` now re-applies share-capture intents
 - `Detail.ets` now exposes attachment and handwriting preview open actions
+- `IdeaRepository` now uses native `relationalStore` for ideas, folders, and tags
 
 ## Verified milestone
 
@@ -30,7 +31,7 @@ BUILD SUCCESSFUL
 
 1. Tighten attachment persistence and replacement behavior
 2. Finish handwriting preview and saved asset flow
-3. Move more of the local storage path toward native HarmonyOS APIs
+3. Continue splitting remaining draft/file helpers from the main RDB path
 4. Add export/import handling in the native app
 5. Revisit remaining SDK compatibility warnings after feature parity improves
 

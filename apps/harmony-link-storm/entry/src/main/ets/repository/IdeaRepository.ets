@@ -1,4 +1,4 @@
-import { preferences } from '@kit.ArkData';
+import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
@@ -7,10 +7,10 @@ import zlib from '@ohos.zlib';
 import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
-const IDEAS_KEY = 'ideas_json';
+const IDEAS_TABLE = 'ideas';
+const FOLDERS_TABLE = 'folders';
+const TAGS_TABLE = 'tags';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
-const FOLDERS_KEY = 'folders_json';
-const TAGS_KEY = 'tags_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
 const BACKUP_SCHEMA = 'link-storm-backup';
@@ -24,212 +24,216 @@ interface MergeResult {
   items: Idea[];
 }
 
+type RdbStore = relationalStore.RdbStore;
+type ValuesBucket = relationalStore.ValuesBucket;
+
 export class IdeaRepository {
-  private pref?: preferences.Preferences;
+  private store?: RdbStore;
   private context?: common.UIAbilityContext;
 
   async init(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
-    this.pref = await preferences.getPreferences(context, STORE_NAME);
+    this.store = await relationalStore.getRdbStore(context, {
+      name: STORE_NAME,
+      securityLevel: relationalStore.SecurityLevel.S1,
+      encrypt: false,
+      customDir: 'link-storm'
+    });
+    await this.ensureSchema();
   }
 
   async list(): Promise<Idea[]> {
-    const raw = await this.ensureStore().get(IDEAS_KEY, '[]') as string;
-    const ideas: Idea[] = JSON.parse(raw) as Idea[];
-    return ideas.sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(IDEAS_TABLE));
+    try {
+      return this.readIdeas(resultSet);
+    } finally {
+      resultSet.close();
+    }
   }
 
   async listFolders(): Promise<IdeaFolder[]> {
-    const raw = await this.ensureStore().get(FOLDERS_KEY, '[]') as string;
-    const folders: IdeaFolder[] = JSON.parse(raw) as IdeaFolder[];
-    return folders.sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(FOLDERS_TABLE));
+    try {
+      return this.readFolders(resultSet);
+    } finally {
+      resultSet.close();
+    }
   }
 
   async listTags(): Promise<IdeaTag[]> {
-    const raw = await this.ensureStore().get(TAGS_KEY, '[]') as string;
-    const tags: IdeaTag[] = JSON.parse(raw) as IdeaTag[];
-    return tags.sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(TAGS_TABLE));
+    try {
+      return this.readTags(resultSet);
+    } finally {
+      resultSet.close();
+    }
   }
 
   async createTag(name: string, color: string = '#0B4F47'): Promise<IdeaTag> {
-    const tags = await this.listTags();
-    const now = new Date().toISOString();
     const tag: IdeaTag = {
       id: this.createId(),
       name: name.trim() || '未命名标签',
       color,
-      createdAt: now,
-      updatedAt: now
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
-    tags.unshift(tag);
-    await this.persistTags(tags);
+    await this.ensureStore().insert(TAGS_TABLE, this.tagToBucket(tag));
     return tag;
   }
 
   async updateTag(id: string, patch: Partial<IdeaTag>): Promise<void> {
-    const tags = await this.listTags();
-    const now = new Date().toISOString();
-    const next = tags.map((tag: IdeaTag) => {
-      if (tag.id !== id) {
-        return tag;
-      }
-      return {
-        id: tag.id,
-        name: patch.name ?? tag.name,
-        color: patch.color ?? tag.color,
-        createdAt: tag.createdAt,
-        updatedAt: now
-      } as IdeaTag;
-    });
-    await this.persistTags(next);
+    const current = await this.getTagById(id);
+    if (!current) {
+      return;
+    }
+    const next: IdeaTag = {
+      id: current.id,
+      name: patch.name ?? current.name,
+      color: patch.color ?? current.color,
+      createdAt: current.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+    await this.ensureStore().update(this.tagToBucket(next), this.predicatesFor(TAGS_TABLE, id));
   }
 
   async deleteTag(id: string): Promise<void> {
-    const tags = await this.listTags();
-    await this.persistTags(tags.filter((tag: IdeaTag) => tag.id !== id));
+    await this.ensureStore().delete(this.predicatesFor(TAGS_TABLE, id));
   }
 
   async assignFolder(ids: string[], folderId?: string): Promise<void> {
     if (ids.length === 0) {
       return;
     }
-    const ideas = await this.list();
-    const targetSet = new Set(ids);
     const now = new Date().toISOString();
-    const next = ideas.map((idea: Idea) => {
-      if (!targetSet.has(idea.id)) {
-        return idea;
+    for (const id of ids) {
+      const current = await this.getById(id);
+      if (!current) {
+        continue;
       }
-      return {
-        id: idea.id,
-        title: idea.title,
-        type: idea.type,
-        plainText: idea.plainText,
-        note: idea.note,
-        tags: idea.tags,
+      const next: Idea = {
+        id: current.id,
+        title: current.title,
+        type: current.type,
+        plainText: current.plainText,
+        note: current.note,
+        tags: current.tags,
         folderId: folderId,
-        context: idea.context,
-        asset: idea.asset,
-        isFavorite: idea.isFavorite,
-        isArchived: idea.isArchived,
-        syncStatus: idea.syncStatus,
-        aiStatus: idea.aiStatus,
-        createdAt: idea.createdAt,
+        context: current.context,
+        asset: current.asset,
+        isFavorite: current.isFavorite,
+        isArchived: current.isArchived,
+        syncStatus: current.syncStatus,
+        aiStatus: current.aiStatus,
+        createdAt: current.createdAt,
         updatedAt: now
-      } as Idea;
-    });
-    await this.persist(next);
+      };
+      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+    }
   }
 
   async assignTags(ids: string[], tags: string[]): Promise<void> {
     if (ids.length === 0) {
       return;
     }
-    const ideas = await this.list();
-    const targetSet = new Set(ids);
     const mergedTags = Array.from(new Set(tags.map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)));
     const now = new Date().toISOString();
-    const next = ideas.map((idea: Idea) => {
-      if (!targetSet.has(idea.id)) {
-        return idea;
+    for (const id of ids) {
+      const current = await this.getById(id);
+      if (!current) {
+        continue;
       }
-      return {
-        id: idea.id,
-        title: idea.title,
-        type: idea.type,
-        plainText: idea.plainText,
-        note: idea.note,
-        tags: Array.from(new Set([...idea.tags, ...mergedTags])),
-        folderId: idea.folderId,
-        context: idea.context,
-        asset: idea.asset,
-        isFavorite: idea.isFavorite,
-        isArchived: idea.isArchived,
-        syncStatus: idea.syncStatus,
-        aiStatus: idea.aiStatus,
-        createdAt: idea.createdAt,
+      const nextTags: string[] = current.tags.slice();
+      for (const tag of mergedTags) {
+        if (!nextTags.includes(tag)) {
+          nextTags.push(tag);
+        }
+      }
+      const next: Idea = {
+        id: current.id,
+        title: current.title,
+        type: current.type,
+        plainText: current.plainText,
+        note: current.note,
+        tags: nextTags,
+        folderId: current.folderId,
+        context: current.context,
+        asset: current.asset,
+        isFavorite: current.isFavorite,
+        isArchived: current.isArchived,
+        syncStatus: current.syncStatus,
+        aiStatus: current.aiStatus,
+        createdAt: current.createdAt,
         updatedAt: now
-      } as Idea;
-    });
-    await this.persist(next);
+      };
+      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+    }
   }
 
   async removeTags(ids: string[], tags: string[]): Promise<void> {
     if (ids.length === 0 || tags.length === 0) {
       return;
     }
-    const ideas = await this.list();
-    const targetSet = new Set(ids);
     const removeSet = new Set(tags.map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0));
     const now = new Date().toISOString();
-    const next = ideas.map((idea: Idea) => {
-      if (!targetSet.has(idea.id)) {
-        return idea;
+    for (const id of ids) {
+      const current = await this.getById(id);
+      if (!current) {
+        continue;
       }
-      return {
-        id: idea.id,
-        title: idea.title,
-        type: idea.type,
-        plainText: idea.plainText,
-        note: idea.note,
-        tags: idea.tags.filter((tag: string) => !removeSet.has(tag)),
-        folderId: idea.folderId,
-        context: idea.context,
-        asset: idea.asset,
-        isFavorite: idea.isFavorite,
-        isArchived: idea.isArchived,
-        syncStatus: idea.syncStatus,
-        aiStatus: idea.aiStatus,
-        createdAt: idea.createdAt,
+      const next: Idea = {
+        id: current.id,
+        title: current.title,
+        type: current.type,
+        plainText: current.plainText,
+        note: current.note,
+        tags: current.tags.filter((tag: string) => !removeSet.has(tag)),
+        folderId: current.folderId,
+        context: current.context,
+        asset: current.asset,
+        isFavorite: current.isFavorite,
+        isArchived: current.isArchived,
+        syncStatus: current.syncStatus,
+        aiStatus: current.aiStatus,
+        createdAt: current.createdAt,
         updatedAt: now
-      } as Idea;
-    });
-    await this.persist(next);
+      };
+      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+    }
   }
 
   async createFolder(name: string, color: string = '#136F63'): Promise<IdeaFolder> {
-    const folders = await this.listFolders();
-    const now = new Date().toISOString();
     const folder: IdeaFolder = {
       id: this.createId(),
       name: name.trim() || '未命名文件夹',
       color,
-      createdAt: now,
-      updatedAt: now
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
-    folders.unshift(folder);
-    await this.persistFolders(folders);
+    await this.ensureStore().insert(FOLDERS_TABLE, this.folderToBucket(folder));
     return folder;
   }
 
   async updateFolder(id: string, patch: Partial<IdeaFolder>): Promise<void> {
-    const folders = await this.listFolders();
-    const now = new Date().toISOString();
-    const next = folders.map((folder: IdeaFolder) => {
-      if (folder.id !== id) {
-        return folder;
-      }
-      return {
-        id: folder.id,
-        name: patch.name ?? folder.name,
-        color: patch.color ?? folder.color,
-        createdAt: folder.createdAt,
-        updatedAt: now
-      } as IdeaFolder;
-    });
-    await this.persistFolders(next);
+    const current = await this.getFolderById(id);
+    if (!current) {
+      return;
+    }
+    const next: IdeaFolder = {
+      id: current.id,
+      name: patch.name ?? current.name,
+      color: patch.color ?? current.color,
+      createdAt: current.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+    await this.ensureStore().update(this.folderToBucket(next), this.predicatesFor(FOLDERS_TABLE, id));
   }
 
   async deleteFolder(id: string, reassignIdeaFolderId?: string): Promise<void> {
-    const folders = await this.listFolders();
-    await this.persistFolders(folders.filter((folder: IdeaFolder) => folder.id !== id));
+    await this.ensureStore().delete(this.predicatesFor(FOLDERS_TABLE, id));
     const ideas = await this.list();
     const now = new Date().toISOString();
-    const next = ideas.map((idea: Idea) => {
-      if (idea.folderId !== id) {
-        return idea;
-      }
-      return {
+    for (const idea of ideas.filter((item: Idea) => item.folderId === id)) {
+      const next: Idea = {
         id: idea.id,
         title: idea.title,
         type: idea.type,
@@ -245,13 +249,12 @@ export class IdeaRepository {
         aiStatus: idea.aiStatus,
         createdAt: idea.createdAt,
         updatedAt: now
-      } as Idea;
-    });
-    await this.persist(next);
+      };
+      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, idea.id));
+    }
   }
 
   async save(draft: IdeaDraft): Promise<Idea> {
-    const ideas = await this.list();
     const now = new Date().toISOString();
     const idea: Idea = {
       id: this.createId(),
@@ -270,81 +273,83 @@ export class IdeaRepository {
       createdAt: now,
       updatedAt: now
     };
-    ideas.unshift(idea);
-    await this.persist(ideas);
+    await this.ensureStore().insert(IDEAS_TABLE, this.ideaToBucket(idea));
     return idea;
   }
 
   async update(id: string, patch: Partial<Idea>): Promise<void> {
-    const ideas = await this.list();
-    const now = new Date().toISOString();
-    const next = ideas.map((idea: Idea) => {
-      if (idea.id !== id) {
-        return idea;
-      }
-      return {
-        id: idea.id,
-        title: patch.title ?? idea.title,
-        type: patch.type ?? idea.type,
-        plainText: patch.plainText ?? idea.plainText,
-        note: patch.note ?? idea.note,
-        tags: patch.tags ?? idea.tags,
-        folderId: patch.folderId ?? idea.folderId,
-        context: patch.context ?? idea.context,
-        asset: patch.asset ?? idea.asset,
-        isFavorite: patch.isFavorite ?? idea.isFavorite,
-        isArchived: patch.isArchived ?? idea.isArchived,
-        syncStatus: patch.syncStatus ?? idea.syncStatus,
-        aiStatus: patch.aiStatus ?? idea.aiStatus,
-        createdAt: idea.createdAt,
-        updatedAt: now
-      } as Idea;
-    });
-    await this.persist(next);
+    const current = await this.getById(id);
+    if (!current) {
+      return;
+    }
+    const next: Idea = {
+      id: current.id,
+      title: patch.title ?? current.title,
+      type: patch.type ?? current.type,
+      plainText: patch.plainText ?? current.plainText,
+      note: patch.note ?? current.note,
+      tags: patch.tags ?? current.tags,
+      folderId: patch.folderId ?? current.folderId,
+      context: patch.context ?? current.context,
+      asset: patch.asset ?? current.asset,
+      isFavorite: patch.isFavorite ?? current.isFavorite,
+      isArchived: patch.isArchived ?? current.isArchived,
+      syncStatus: patch.syncStatus ?? current.syncStatus,
+      aiStatus: patch.aiStatus ?? current.aiStatus,
+      createdAt: current.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+    await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
   }
 
   async saveCaptureDraft(draft: CaptureDraftState): Promise<void> {
-    await this.ensureStore().put(CAPTURE_DRAFT_KEY, JSON.stringify(draft));
-    await this.ensureStore().flush();
+    const context = this.ensureContext();
+    this.writeTextFile(`${context.filesDir}/${CAPTURE_DRAFT_KEY}`, JSON.stringify(draft));
   }
 
   async loadCaptureDraft(): Promise<CaptureDraftState | undefined> {
-    const raw = await this.ensureStore().get(CAPTURE_DRAFT_KEY, '') as string;
-    if (!raw) {
+    const context = this.ensureContext();
+    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
+    if (!fileIo.accessSync(path)) {
       return undefined;
     }
     try {
-      return JSON.parse(raw) as CaptureDraftState;
+      return JSON.parse(fileIo.readTextSync(path)) as CaptureDraftState;
     } catch {
       return undefined;
     }
   }
 
   async clearCaptureDraft(): Promise<void> {
-    await this.ensureStore().delete(CAPTURE_DRAFT_KEY);
-    await this.ensureStore().flush();
+    const context = this.ensureContext();
+    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
+    if (fileIo.accessSync(path)) {
+      fileIo.unlinkSync(path);
+    }
   }
 
   async delete(id: string): Promise<void> {
-    const ideas = await this.list();
-    await this.persist(ideas.filter((idea: Idea) => idea.id !== id));
+    await this.ensureStore().delete(this.predicatesFor(IDEAS_TABLE, id));
   }
 
   async getById(id: string): Promise<Idea | undefined> {
-    const ideas = await this.list();
-    return ideas.find((idea: Idea) => idea.id === id);
+    const resultSet = await this.ensureStore().query(this.predicatesFor(IDEAS_TABLE, id));
+    try {
+      const ideas = this.readIdeas(resultSet);
+      return ideas.length > 0 ? ideas[0] : undefined;
+    } finally {
+      resultSet.close();
+    }
   }
 
   async exportJson(): Promise<string> {
-    const folders = await this.listFolders();
-    const tags = await this.listTags();
     return JSON.stringify({
       schema: EXPORT_SCHEMA,
       version: 1,
       exportedAt: new Date().toISOString(),
       ideas: await this.list(),
-      folders,
-      tags
+      folders: await this.listFolders(),
+      tags: await this.listTags()
     } as IdeaExportPayload, null, 2);
   }
 
@@ -353,7 +358,7 @@ export class IdeaRepository {
     const active = ideas.filter((idea: Idea) => !idea.isArchived).length;
     const archived = ideas.length - active;
     const favorite = ideas.filter((idea: Idea) => idea.isFavorite).length;
-    return `总计${ideas.length}，收藏${favorite}，归档${archived}，活动${active}`;
+    return `总计${ideas.length}，收藏${favorite}，归档${archived}，活跃${active}`;
   }
 
   async exportToFile(): Promise<string> {
@@ -368,15 +373,9 @@ export class IdeaRepository {
     if (uris.length === 0) {
       throw new Error('Export cancelled');
     }
-
     const target = uris[0];
     const path = this.resolveFilePath(target);
-    const file = fileIo.createRandomAccessFileSync(path, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    try {
-      await file.write(await this.exportJson(), { encoding: 'utf-8' });
-    } finally {
-      file.close();
-    }
+    this.writeTextFile(path, await this.exportJson());
     return target;
   }
 
@@ -391,26 +390,16 @@ export class IdeaRepository {
     fileIo.mkdirSync(payloadDir);
     fileIo.mkdirSync(attachmentsDir);
 
-    const ideas = await this.list();
-    const folders = await this.listFolders();
-    const tags = await this.listTags();
-    const attachmentEntries = await this.collectBackupAttachments(ideas, attachmentsDir);
     const backup: IdeaBackupPayload = {
       schema: BACKUP_SCHEMA,
       version: 1,
       exportedAt: new Date().toISOString(),
-      ideas,
-      folders,
-      tags,
-      attachments: attachmentEntries
+      ideas: await this.list(),
+      folders: await this.listFolders(),
+      tags: await this.listTags(),
+      attachments: await this.collectBackupAttachments(await this.list(), attachmentsDir)
     };
-    const manifestFile = fileIo.openSync(manifestPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
-    try {
-      fileIo.writeSync(manifestFile.fd, JSON.stringify(backup, null, 2));
-    } finally {
-      fileIo.closeSync(manifestFile);
-    }
-
+    this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
     await zlib.compressFile(payloadDir, archivePath, {
       level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
     });
@@ -425,8 +414,7 @@ export class IdeaRepository {
     if (uris.length === 0) {
       throw new Error('Import cancelled');
     }
-    const payload = this.readTextByUri(uris[0]);
-    return this.importJson(payload, strategy);
+    return this.importJson(fileIo.readTextSync(this.resolveFilePath(uris[0])), strategy);
   }
 
   async importBackupZip(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -447,22 +435,15 @@ export class IdeaRepository {
     if (parsed.schema !== BACKUP_SCHEMA) {
       throw new Error('Invalid backup schema');
     }
-    const existing = await this.list();
-    const merged = this.mergeIdeas(existing, parsed.ideas, strategy);
-    await this.persist(merged.items);
-    if (Array.isArray((parsed as IdeaBackupPayload).folders)) {
-      await this.persistFolders(this.mergeFolders(await this.listFolders(), (parsed as IdeaBackupPayload).folders, strategy));
+    const merged = await this.importPayloadIdeas(parsed.ideas, strategy);
+    if (Array.isArray(parsed.folders)) {
+      await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders, strategy));
     }
-    if (Array.isArray((parsed as IdeaBackupPayload).tags)) {
-      await this.persistTags(this.mergeTags(await this.listTags(), (parsed as IdeaBackupPayload).tags, strategy));
+    if (Array.isArray(parsed.tags)) {
+      await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags, strategy));
     }
     this.cleanupBackupTemp(tempRoot);
-    return {
-      inserted: merged.inserted,
-      updated: merged.updated,
-      skipped: merged.skipped,
-      conflicts: merged.conflicts
-    };
+    return merged;
   }
 
   async importJson(payload: string, strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -478,22 +459,14 @@ export class IdeaRepository {
     if (!Array.isArray(parsed.ideas)) {
       throw new Error('Invalid ideas payload');
     }
-
-    const existing = await this.list();
-    const merged = this.mergeIdeas(existing, parsed.ideas as Idea[], strategy);
-    await this.persist(merged.items);
+    const merged = await this.importPayloadIdeas(parsed.ideas as Idea[], strategy);
     if (Array.isArray(parsed.folders)) {
-      await this.persistFolders(this.mergeFolders(await this.listFolders(), parsed.folders as IdeaFolder[], strategy));
+      await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders as IdeaFolder[], strategy));
     }
     if (Array.isArray(parsed.tags)) {
-      await this.persistTags(this.mergeTags(await this.listTags(), parsed.tags as IdeaTag[], strategy));
+      await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags as IdeaTag[], strategy));
     }
-    return {
-      inserted: merged.inserted,
-      updated: merged.updated,
-      skipped: merged.skipped,
-      conflicts: merged.conflicts
-    };
+    return merged;
   }
 
   async pickAttachmentPath(): Promise<string | undefined> {
@@ -553,19 +526,334 @@ export class IdeaRepository {
     return targetPath;
   }
 
-  private readTextByUri(uri: string): string {
-    const path = this.resolveFilePath(uri);
-    return fileIo.readTextSync(path);
+  private async ensureSchema(): Promise<void> {
+    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${IDEAS_TABLE} (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL,
+      plainText TEXT NOT NULL,
+      note TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      folderId TEXT,
+      contextTitle TEXT NOT NULL,
+      contextUrl TEXT NOT NULL,
+      contextManualNote TEXT NOT NULL,
+      contextCapturedAt TEXT NOT NULL,
+      assetJson TEXT,
+      isFavorite INTEGER NOT NULL,
+      isArchived INTEGER NOT NULL,
+      syncStatus TEXT NOT NULL,
+      aiStatus TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )`);
+    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${FOLDERS_TABLE} (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )`);
+    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${TAGS_TABLE} (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )`);
   }
 
-  private resolveFilePath(uri: string): string {
-    if (uri.startsWith('file://')) {
-      return new fileUri.FileUri(uri).path;
+  private async importPayloadIdeas(incoming: Idea[], strategy: ImportConflictStrategy): Promise<ImportResult> {
+    const existing = await this.list();
+    const merged = this.mergeIdeas(existing, incoming, strategy);
+    await this.replaceIdeas(merged.items);
+    return {
+      inserted: merged.inserted,
+      updated: merged.updated,
+      skipped: merged.skipped,
+      conflicts: merged.conflicts
+    };
+  }
+
+  private async replaceIdeas(items: Idea[]): Promise<void> {
+    await this.ensureStore().delete(new relationalStore.RdbPredicates(IDEAS_TABLE));
+    for (const item of items) {
+      await this.ensureStore().insert(IDEAS_TABLE, this.ideaToBucket(item));
     }
-    if (uri.startsWith('/')) {
-      return uri;
+  }
+
+  private async replaceFolders(items: IdeaFolder[]): Promise<void> {
+    await this.ensureStore().delete(new relationalStore.RdbPredicates(FOLDERS_TABLE));
+    for (const item of items) {
+      await this.ensureStore().insert(FOLDERS_TABLE, this.folderToBucket(item));
     }
-    return new fileUri.FileUri(uri).path;
+  }
+
+  private async replaceTags(items: IdeaTag[]): Promise<void> {
+    await this.ensureStore().delete(new relationalStore.RdbPredicates(TAGS_TABLE));
+    for (const item of items) {
+      await this.ensureStore().insert(TAGS_TABLE, this.tagToBucket(item));
+    }
+  }
+
+  private readIdeas(resultSet: relationalStore.ResultSet): Idea[] {
+    const items: Idea[] = [];
+    while (resultSet.goToNextRow()) {
+      items.push(this.rowToIdea(resultSet));
+    }
+    return items.sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private readFolders(resultSet: relationalStore.ResultSet): IdeaFolder[] {
+    const items: IdeaFolder[] = [];
+    while (resultSet.goToNextRow()) {
+      items.push(this.rowToFolder(resultSet));
+    }
+    return items.sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private readTags(resultSet: relationalStore.ResultSet): IdeaTag[] {
+    const items: IdeaTag[] = [];
+    while (resultSet.goToNextRow()) {
+      items.push(this.rowToTag(resultSet));
+    }
+    return items.sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private rowToIdea(resultSet: relationalStore.ResultSet): Idea {
+    return {
+      id: resultSet.getString(resultSet.getColumnIndex('id')),
+      title: resultSet.getString(resultSet.getColumnIndex('title')),
+      type: resultSet.getString(resultSet.getColumnIndex('type')) as IdeaType,
+      plainText: resultSet.getString(resultSet.getColumnIndex('plainText')),
+      note: resultSet.getString(resultSet.getColumnIndex('note')),
+      tags: JSON.parse(resultSet.getString(resultSet.getColumnIndex('tags'))) as string[],
+      folderId: this.readNullableString(resultSet, 'folderId') || undefined,
+      context: {
+        title: resultSet.getString(resultSet.getColumnIndex('contextTitle')),
+        url: resultSet.getString(resultSet.getColumnIndex('contextUrl')),
+        manualNote: resultSet.getString(resultSet.getColumnIndex('contextManualNote')),
+        capturedAt: resultSet.getString(resultSet.getColumnIndex('contextCapturedAt'))
+      },
+      asset: this.parseAssetJson(this.readNullableString(resultSet, 'assetJson')),
+      isFavorite: resultSet.getLong(resultSet.getColumnIndex('isFavorite')) === 1,
+      isArchived: resultSet.getLong(resultSet.getColumnIndex('isArchived')) === 1,
+      syncStatus: resultSet.getString(resultSet.getColumnIndex('syncStatus')),
+      aiStatus: resultSet.getString(resultSet.getColumnIndex('aiStatus')),
+      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
+      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+    };
+  }
+
+  private rowToFolder(resultSet: relationalStore.ResultSet): IdeaFolder {
+    return {
+      id: resultSet.getString(resultSet.getColumnIndex('id')),
+      name: resultSet.getString(resultSet.getColumnIndex('name')),
+      color: resultSet.getString(resultSet.getColumnIndex('color')),
+      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
+      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+    };
+  }
+
+  private rowToTag(resultSet: relationalStore.ResultSet): IdeaTag {
+    return {
+      id: resultSet.getString(resultSet.getColumnIndex('id')),
+      name: resultSet.getString(resultSet.getColumnIndex('name')),
+      color: resultSet.getString(resultSet.getColumnIndex('color')),
+      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
+      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+    };
+  }
+
+  private ideaToBucket(idea: Idea): ValuesBucket {
+    return {
+      id: idea.id,
+      title: idea.title,
+      type: idea.type,
+      plainText: idea.plainText,
+      note: idea.note,
+      tags: JSON.stringify(idea.tags),
+      folderId: idea.folderId || null,
+      contextTitle: idea.context.title,
+      contextUrl: idea.context.url,
+      contextManualNote: idea.context.manualNote,
+      contextCapturedAt: idea.context.capturedAt,
+      assetJson: idea.asset ? JSON.stringify(idea.asset) : null,
+      isFavorite: idea.isFavorite ? 1 : 0,
+      isArchived: idea.isArchived ? 1 : 0,
+      syncStatus: idea.syncStatus,
+      aiStatus: idea.aiStatus,
+      createdAt: idea.createdAt,
+      updatedAt: idea.updatedAt
+    };
+  }
+
+  private folderToBucket(folder: IdeaFolder): ValuesBucket {
+    return {
+      id: folder.id,
+      name: folder.name,
+      color: folder.color,
+      createdAt: folder.createdAt,
+      updatedAt: folder.updatedAt
+    };
+  }
+
+  private tagToBucket(tag: IdeaTag): ValuesBucket {
+    return {
+      id: tag.id,
+      name: tag.name,
+      color: tag.color,
+      createdAt: tag.createdAt,
+      updatedAt: tag.updatedAt
+    };
+  }
+
+  private parseAssetJson(value: string | undefined): IdeaAsset | undefined {
+    if (!value) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(value) as IdeaAsset;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private readNullableString(resultSet: relationalStore.ResultSet, columnName: string): string {
+    const idx = resultSet.getColumnIndex(columnName);
+    if (idx < 0) {
+      return '';
+    }
+    const value = resultSet.getString(idx);
+    return value ?? '';
+  }
+
+  private async getFolderById(id: string): Promise<IdeaFolder | undefined> {
+    const resultSet = await this.ensureStore().query(this.predicatesFor(FOLDERS_TABLE, id));
+    try {
+      const items = this.readFolders(resultSet);
+      return items.length > 0 ? items[0] : undefined;
+    } finally {
+      resultSet.close();
+    }
+  }
+
+  private async getTagById(id: string): Promise<IdeaTag | undefined> {
+    const resultSet = await this.ensureStore().query(this.predicatesFor(TAGS_TABLE, id));
+    try {
+      const items = this.readTags(resultSet);
+      return items.length > 0 ? items[0] : undefined;
+    } finally {
+      resultSet.close();
+    }
+  }
+
+  private predicatesFor(table: string, id: string): relationalStore.RdbPredicates {
+    return new relationalStore.RdbPredicates(table).equalTo('id', id);
+  }
+
+  private ensureStore(): RdbStore {
+    if (!this.store) {
+      throw new Error('IdeaRepository is not initialized');
+    }
+    return this.store;
+  }
+
+  private ensureContext(): common.UIAbilityContext {
+    if (!this.context) {
+      throw new Error('IdeaRepository is not initialized');
+    }
+    return this.context;
+  }
+
+  private createId(): string {
+    return `${Date.now()}-${Math.round(Math.random() * 1000000)}`;
+  }
+
+  private defaultTitle(type: IdeaType): string {
+    if (type === IdeaType.AUDIO) {
+      return `语音想法 ${new Date().toLocaleString()}`;
+    }
+    if (type === IdeaType.HANDWRITING) {
+      return `手写想法 ${new Date().toLocaleString()}`;
+    }
+    return `文档想法 ${new Date().toLocaleString()}`;
+  }
+
+  private mergeIdeas(existing: Idea[], incoming: Idea[], strategy: ImportConflictStrategy): MergeResult {
+    const map = new Map<string, Idea>();
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    const conflicts: string[] = [];
+
+    for (const idea of existing) {
+      map.set(idea.id, idea);
+    }
+
+    for (const idea of incoming) {
+      if (!idea || typeof idea.id !== 'string') {
+        skipped++;
+        continue;
+      }
+      const current = map.get(idea.id);
+      if (!current) {
+        map.set(idea.id, idea);
+        inserted++;
+        continue;
+      }
+      const incomingNewer = Date.parse(idea.updatedAt) > Date.parse(current.updatedAt);
+      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
+      if (shouldOverwrite) {
+        map.set(idea.id, idea);
+        updated++;
+      } else {
+        conflicts.push(idea.id);
+        skipped++;
+      }
+    }
+
+    return {
+      inserted,
+      updated,
+      skipped,
+      conflicts,
+      items: Array.from(map.values()).sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    };
+  }
+
+  private mergeFolders(existing: IdeaFolder[], incoming: IdeaFolder[], strategy: ImportConflictStrategy): IdeaFolder[] {
+    const map = new Map<string, IdeaFolder>();
+    for (const folder of existing) {
+      map.set(folder.id, folder);
+    }
+    for (const folder of incoming) {
+      if (!folder || typeof folder.id !== 'string') {
+        continue;
+      }
+      const current = map.get(folder.id);
+      if (!current || strategy === ImportConflictStrategy.FORCE_OVERWRITE || Date.parse(folder.updatedAt) > Date.parse(current.updatedAt)) {
+        map.set(folder.id, folder);
+      }
+    }
+    return Array.from(map.values()).sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private mergeTags(existing: IdeaTag[], incoming: IdeaTag[], strategy: ImportConflictStrategy): IdeaTag[] {
+    const map = new Map<string, IdeaTag>();
+    for (const tag of existing) {
+      map.set(tag.id, tag);
+    }
+    for (const tag of incoming) {
+      if (!tag || typeof tag.id !== 'string') {
+        continue;
+      }
+      const current = map.get(tag.id);
+      if (!current || strategy === ImportConflictStrategy.FORCE_OVERWRITE || Date.parse(tag.updatedAt) > Date.parse(current.updatedAt)) {
+        map.set(tag.id, tag);
+      }
+    }
+    return Array.from(map.values()).sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
   private async collectBackupAttachments(ideas: Idea[], attachmentsDir: string): Promise<IdeaBackupAttachment[]> {
@@ -633,10 +921,7 @@ export class IdeaRepository {
     if (lower.endsWith('.m4a') || lower.endsWith('.aac') || lower.endsWith('.mp3') || lower.endsWith('.wav')) {
       return 'audio';
     }
-    if (fallback) {
-      return fallback;
-    }
-    return 'manual';
+    return fallback || 'manual';
   }
 
   private inferMimeType(path: string, fallback?: string): string | undefined {
@@ -678,146 +963,31 @@ export class IdeaRepository {
     fileIo.unlinkSync(resolved);
   }
 
-  private async persist(ideas: Idea[]): Promise<void> {
-    await this.ensureStore().put(IDEAS_KEY, JSON.stringify(ideas));
-    await this.ensureStore().flush();
+  private writeTextFile(path: string, text: string): void {
+    const file = fileIo.openSync(path, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+    try {
+      fileIo.writeSync(file.fd, text, { encoding: 'utf-8' });
+    } finally {
+      fileIo.closeSync(file);
+    }
   }
 
-  private async persistFolders(folders: IdeaFolder[]): Promise<void> {
-    await this.ensureStore().put(FOLDERS_KEY, JSON.stringify(folders));
-    await this.ensureStore().flush();
-  }
-
-  private async persistTags(tags: IdeaTag[]): Promise<void> {
-    await this.ensureStore().put(TAGS_KEY, JSON.stringify(tags));
-    await this.ensureStore().flush();
-  }
-
-  private ensureStore(): preferences.Preferences {
-    if (!this.pref) {
-      throw new Error('IdeaRepository is not initialized');
+  private resolveFilePath(uri: string): string {
+    if (uri.startsWith('file://')) {
+      return new fileUri.FileUri(uri).path;
     }
-    return this.pref;
-  }
-
-  private ensureContext(): common.UIAbilityContext {
-    if (!this.context) {
-      throw new Error('IdeaRepository is not initialized');
+    if (uri.startsWith('/')) {
+      return uri;
     }
-    return this.context;
-  }
-
-  private createId(): string {
-    return `${Date.now()}-${Math.round(Math.random() * 1000000)}`;
-  }
-
-  private defaultTitle(type: IdeaType): string {
-    if (type === IdeaType.AUDIO) {
-      return `语音想法 ${new Date().toLocaleString()}`;
-    }
-    if (type === IdeaType.HANDWRITING) {
-      return `手写想法 ${new Date().toLocaleString()}`;
-    }
-    return `文档想法 ${new Date().toLocaleString()}`;
-  }
-
-  private mergeIdeas(existing: Idea[], incoming: Idea[], strategy: ImportConflictStrategy): MergeResult {
-    const map = new Map<string, Idea>();
-    let inserted = 0;
-    let updated = 0;
-    let skipped = 0;
-    const conflicts: string[] = [];
-
-    for (const idea of existing) {
-      map.set(idea.id, idea);
-    }
-
-    for (const idea of incoming) {
-      if (!idea || typeof idea.id !== 'string') {
-        skipped++;
-        continue;
-      }
-      const current = map.get(idea.id);
-      if (!current) {
-        map.set(idea.id, idea);
-        inserted++;
-        continue;
-      }
-      const incomingNewer = Date.parse(idea.updatedAt) > Date.parse(current.updatedAt);
-      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
-      if (shouldOverwrite) {
-        map.set(idea.id, idea);
-        updated++;
-      } else {
-        conflicts.push(idea.id);
-        skipped++;
-      }
-    }
-
-    const result: MergeResult = {
-      inserted,
-      updated,
-      skipped,
-      conflicts,
-      items: Array.from(map.values()).sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    };
-    return result;
-  }
-
-  private mergeFolders(existing: IdeaFolder[], incoming: IdeaFolder[], strategy: ImportConflictStrategy): IdeaFolder[] {
-    const map = new Map<string, IdeaFolder>();
-    for (const folder of existing) {
-      map.set(folder.id, folder);
-    }
-
-    for (const folder of incoming) {
-      if (!folder || typeof folder.id !== 'string') {
-        continue;
-      }
-      const current = map.get(folder.id);
-      if (!current) {
-        map.set(folder.id, folder);
-        continue;
-      }
-      const incomingNewer = Date.parse(folder.updatedAt) > Date.parse(current.updatedAt);
-      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
-      if (shouldOverwrite) {
-        map.set(folder.id, folder);
-      }
-    }
-
-    return Array.from(map.values()).sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  }
-
-  private mergeTags(existing: IdeaTag[], incoming: IdeaTag[], strategy: ImportConflictStrategy): IdeaTag[] {
-    const map = new Map<string, IdeaTag>();
-    for (const tag of existing) {
-      map.set(tag.id, tag);
-    }
-
-    for (const tag of incoming) {
-      if (!tag || typeof tag.id !== 'string') {
-        continue;
-      }
-      const current = map.get(tag.id);
-      if (!current) {
-        map.set(tag.id, tag);
-        continue;
-      }
-      const incomingNewer = Date.parse(tag.updatedAt) > Date.parse(current.updatedAt);
-      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
-      if (shouldOverwrite) {
-        map.set(tag.id, tag);
-      }
-    }
-
-    return Array.from(map.values()).sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    return new fileUri.FileUri(uri).path;
   }
 
   private timestampStamp(): string {
-    const now = new Date();
-    const pad = (value: number): string => `${value}`.padStart(2, '0');
-    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return new Date().toISOString().replace(/[:.]/g, '-');
+  }
+
+  private async readAllIdeas(): Promise<Idea[]> {
+    return this.list();
   }
 }
 

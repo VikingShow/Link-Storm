@@ -3,12 +3,15 @@ import { common } from '@kit.AbilityKit';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
-import { Idea, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import zlib from '@ohos.zlib';
+import { Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_KEY = 'ideas_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
+const BACKUP_SCHEMA = 'link-storm-backup';
+const BACKUP_FILE_SUFFIX = '.zip';
 
 interface MergeResult {
   inserted: number;
@@ -137,6 +140,40 @@ export class IdeaRepository {
     return target;
   }
 
+  async exportBackupZip(): Promise<string> {
+    const context = this.ensureContext();
+    const tempRoot = `${context.cacheDir}/link-storm-backup-${Date.now()}`;
+    const payloadDir = `${tempRoot}/payload`;
+    const attachmentsDir = `${payloadDir}/attachments`;
+    const manifestPath = `${payloadDir}/manifest.json`;
+    const archivePath = `${context.filesDir}/link-storm-backup-${this.timestampStamp()}${BACKUP_FILE_SUFFIX}`;
+    fileIo.mkdirSync(tempRoot);
+    fileIo.mkdirSync(payloadDir);
+    fileIo.mkdirSync(attachmentsDir);
+
+    const ideas = await this.list();
+    const attachmentEntries = await this.collectBackupAttachments(ideas, attachmentsDir);
+    const backup: IdeaBackupPayload = {
+      schema: BACKUP_SCHEMA,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      ideas,
+      attachments: attachmentEntries
+    };
+    const manifestFile = fileIo.openSync(manifestPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+    try {
+      fileIo.writeSync(manifestFile.fd, JSON.stringify(backup, null, 2));
+    } finally {
+      fileIo.closeSync(manifestFile);
+    }
+
+    await zlib.compressFile(payloadDir, archivePath, {
+      level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
+    });
+    this.cleanupBackupTemp(tempRoot);
+    return archivePath;
+  }
+
   async importFromFile(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
     const context = this.ensureContext();
     const pickerInstance = new picker.DocumentViewPicker(context);
@@ -146,6 +183,36 @@ export class IdeaRepository {
     }
     const payload = this.readTextByUri(uris[0]);
     return this.importJson(payload, strategy);
+  }
+
+  async importBackupZip(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
+    const context = this.ensureContext();
+    const pickerInstance = new picker.DocumentViewPicker(context);
+    const uris = await pickerInstance.select();
+    if (uris.length === 0) {
+      throw new Error('Import cancelled');
+    }
+    const zipPath = this.resolveFilePath(uris[0]);
+    const tempRoot = `${context.cacheDir}/link-storm-import-${Date.now()}`;
+    const extractDir = `${tempRoot}/extract`;
+    fileIo.mkdirSync(tempRoot);
+    fileIo.mkdirSync(extractDir);
+    await zlib.decompressFile(zipPath, extractDir);
+    const manifest = this.readBackupManifest(extractDir);
+    const parsed = JSON.parse(manifest) as IdeaBackupPayload;
+    if (parsed.schema !== BACKUP_SCHEMA) {
+      throw new Error('Invalid backup schema');
+    }
+    const existing = await this.list();
+    const merged = this.mergeIdeas(existing, parsed.ideas, strategy);
+    await this.persist(merged.items);
+    this.cleanupBackupTemp(tempRoot);
+    return {
+      inserted: merged.inserted,
+      updated: merged.updated,
+      skipped: merged.skipped,
+      conflicts: merged.conflicts
+    };
   }
 
   async importJson(payload: string, strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -186,6 +253,63 @@ export class IdeaRepository {
       return uri;
     }
     return new fileUri.FileUri(uri).path;
+  }
+
+  private async collectBackupAttachments(ideas: Idea[], attachmentsDir: string): Promise<IdeaBackupAttachment[]> {
+    const entries: IdeaBackupAttachment[] = [];
+    for (const idea of ideas) {
+      const asset = idea.asset;
+      if (!asset?.localUri) {
+        continue;
+      }
+      const sourcePath = this.resolveFilePath(asset.localUri);
+      if (!fileIo.accessSync(sourcePath)) {
+        continue;
+      }
+      const fileName = `${idea.id}-${this.safeName(asset.type || 'asset')}${this.extensionFromPath(sourcePath)}`;
+      const relativePath = `attachments/${fileName}`;
+      const destPath = `${attachmentsDir}/${fileName}`;
+      fileIo.copyFileSync(sourcePath, destPath);
+      entries.push({
+        ideaId: idea.id,
+        kind: asset.type || 'asset',
+        sourcePath,
+        relativePath
+      });
+    }
+    return entries;
+  }
+
+  private readBackupManifest(extractDir: string): string {
+    const rootManifest = `${extractDir}/manifest.json`;
+    if (fileIo.accessSync(rootManifest)) {
+      return fileIo.readTextSync(rootManifest);
+    }
+    const nestedManifest = `${extractDir}/payload/manifest.json`;
+    if (fileIo.accessSync(nestedManifest)) {
+      return fileIo.readTextSync(nestedManifest);
+    }
+    throw new Error('Backup manifest not found');
+  }
+
+  private cleanupBackupTemp(tempRoot: string): void {
+    try {
+      fileIo.rmdirSync(tempRoot);
+    } catch {
+      return;
+    }
+  }
+
+  private extensionFromPath(path: string): string {
+    const lastDot = path.lastIndexOf('.');
+    if (lastDot < 0) {
+      return '';
+    }
+    return path.substring(lastDot);
+  }
+
+  private safeName(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
   private async persist(ideas: Idea[]): Promise<void> {

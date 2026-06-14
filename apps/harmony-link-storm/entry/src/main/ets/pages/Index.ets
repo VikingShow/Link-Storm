@@ -203,6 +203,30 @@ struct Index {
           .fontColor('#697386')
           .layoutWeight(1)
       }
+      Row({ space: 8 }) {
+        Button('ZIP备份')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              const archivePath = await ideaRepository.exportBackupZip();
+              this.exportStatus = `ZIP备份已生成：${archivePath}`;
+            } catch (err) {
+              this.exportStatus = `ZIP备份失败：${String(err)}`;
+            }
+          })
+        Button('ZIP导入')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              const result = await ideaRepository.importBackupZip(this.importStrategy);
+              const conflictHint = result.conflicts.length > 0 ? `，冲突 ${result.conflicts.length}` : '';
+              this.importStatus = `ZIP导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}${conflictHint}`;
+              await this.reloadIdeas();
+            } catch (err) {
+              this.importStatus = `ZIP导入失败：${String(err)}`;
+            }
+          })
+      }
     }
     .width('100%')
   }

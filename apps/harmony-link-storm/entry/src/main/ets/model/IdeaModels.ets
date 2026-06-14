@@ -75,6 +75,21 @@ export interface IdeaExportPayload {
   ideas: Idea[];
 }
 
+export interface IdeaBackupPayload {
+  schema: string;
+  version: number;
+  exportedAt: string;
+  ideas: Idea[];
+  attachments: IdeaBackupAttachment[];
+}
+
+export interface IdeaBackupAttachment {
+  ideaId: string;
+  kind: string;
+  sourcePath: string;
+  relativePath: string;
+}
+
 export interface ImportResult {
   inserted: number;
   updated: number;

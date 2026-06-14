@@ -429,6 +429,11 @@ struct Index {
         }
         .alignItems(HorizontalAlign.Start)
         Blank()
+        if (this.hasActiveFilters()) {
+          Button('清除筛选')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(() => this.resetFilters())
+        }
         Text(`${this.filteredIdeas().length} 条`)
           .fontSize(12)
           .fontWeight(FontWeight.Bold)
@@ -441,6 +446,10 @@ struct Index {
 
       TextInput({ placeholder: '搜索标题、标签、正文、来源', text: this.search })
         .onChange((value: string) => this.search = value)
+
+      Text(this.filterSummary())
+        .fontSize(12)
+        .fontColor('#667085')
 
       Row({ space: 8 }) {
         this.FilterButton('all', '全部')
@@ -558,6 +567,13 @@ struct Index {
         .fontColor('#697386')
         .width('100%')
         .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+      Text(this.contextSummary(idea))
+        .fontSize(12)
+        .fontColor('#667085')
+        .width('100%')
+        .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
 
       if (idea.tags.length > 0) {
@@ -740,6 +756,17 @@ struct Index {
     });
   }
 
+  private hasActiveFilters(): boolean {
+    return this.search.trim().length > 0 || this.typeFilter !== 'all' || this.tagFilter.length > 0 || this.folderFilter !== 'all';
+  }
+
+  private resetFilters(): void {
+    this.search = '';
+    this.typeFilter = 'all';
+    this.tagFilter = '';
+    this.folderFilter = 'all';
+  }
+
   private isSelected(id: string): boolean {
     return this.selectedIds.includes(id);
   }
@@ -889,6 +916,37 @@ struct Index {
       return idea.asset?.strokes?.length ? `手写笔画 ${idea.asset.strokes.length} 组` : '手写记录入口已预留，后续保存笔迹和预览图。';
     }
     return idea.plainText || idea.note || '没有正文。';
+  }
+
+  private contextSummary(idea: Idea): string {
+    const parts: string[] = [];
+    if (idea.context.title.length > 0) {
+      parts.push(idea.context.title);
+    }
+    if (idea.context.url.length > 0) {
+      parts.push(idea.context.url);
+    }
+    if (parts.length === 0) {
+      parts.push(idea.context.manualNote || '无来源上下文');
+    }
+    return `来源：${parts.join(' · ')}`;
+  }
+
+  private filterSummary(): string {
+    const parts: string[] = [];
+    if (this.search.trim().length > 0) {
+      parts.push(`搜索 "${this.search.trim()}"`);
+    }
+    if (this.typeFilter !== 'all') {
+      parts.push(`类型 ${ideaTypeLabel(this.typeFilter as IdeaType)}`);
+    }
+    if (this.tagFilter.length > 0) {
+      parts.push(`标签 ${this.tagFilter}`);
+    }
+    if (this.folderFilter !== 'all') {
+      parts.push(`文件夹 ${this.folderFilter}`);
+    }
+    return parts.length > 0 ? `当前筛选：${parts.join('，')}` : '当前显示全部记录。';
   }
 
   private clearHandwriting(): void {

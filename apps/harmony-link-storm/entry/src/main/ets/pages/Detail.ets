@@ -56,6 +56,27 @@ struct Detail {
       .width('100%')
 
       if (this.idea) {
+        Column({ space: 4 }) {
+          Text('来源上下文')
+            .fontSize(14)
+            .fontWeight(FontWeight.Bold)
+          Text(this.contextSummary())
+            .fontSize(12)
+            .fontColor('#667085')
+          if (this.idea.context.manualNote.length > 0) {
+            Text(this.idea.context.manualNote)
+              .fontSize(12)
+              .fontColor('#667085')
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+        }
+        .padding(12)
+        .width('100%')
+        .backgroundColor('#FBFCFD')
+        .border({ width: 1, color: '#D8DDE6' })
+        .borderRadius(8)
+
         if (this.idea.asset?.previewPath && this.idea.asset.type === 'handwriting') {
           Image(this.idea.asset.previewPath)
             .width('100%')
@@ -298,6 +319,23 @@ struct Detail {
       previewPath: this.assetPreviewPath || undefined
     };
     return asset;
+  }
+
+  private contextSummary(): string {
+    if (!this.idea) {
+      return '';
+    }
+    const parts: string[] = [];
+    if (this.idea.context.title.length > 0) {
+      parts.push(this.idea.context.title);
+    }
+    if (this.idea.context.url.length > 0) {
+      parts.push(this.idea.context.url);
+    }
+    if (parts.length === 0) {
+      return '无来源链接，已保存为手动上下文。';
+    }
+    return parts.join(' · ');
   }
 
   private isPlayableAudio(): boolean {

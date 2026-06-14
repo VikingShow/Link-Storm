@@ -1,8 +1,10 @@
 import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import componentSnapshot from '@ohos.arkui.componentSnapshot';
+import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
+import { systemShare } from '@kit.ShareKit';
 import { HandwritingStroke, Idea, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
@@ -101,6 +103,16 @@ struct Index {
             this.exportStatus = `已导出：${uri}（${summary}）`;
           } catch (err) {
             this.exportStatus = `导出失败：${String(err)}`;
+          }
+        })
+      Button('分享')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          try {
+            await this.shareIdeas();
+            this.exportStatus = '已打开系统分享面板';
+          } catch (err) {
+            this.exportStatus = `分享失败：${String(err)}`;
           }
         })
       Button('导入文件')
@@ -615,6 +627,46 @@ struct Index {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map((entry) => entry[0]);
+  }
+
+  private async shareIdeas(): Promise<void> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const items = this.selectedIds.length > 0
+      ? this.ideas.filter((idea: Idea) => this.selectedIds.includes(idea.id))
+      : this.filteredIdeas();
+    const content = this.buildShareText(items);
+    const shareData = new systemShare.SharedData({
+      utd: utd.UniformDataType.PLAIN_TEXT,
+      content: content,
+      title: 'Link Storm',
+      description: `分享${items.length}条本地想法`
+    });
+    const controller = new systemShare.ShareController(shareData);
+    await controller.show(context, {
+      previewMode: systemShare.SharePreviewMode.DEFAULT,
+      selectionMode: systemShare.SelectionMode.SINGLE
+    });
+  }
+
+  private buildShareText(items: Idea[]): string {
+    if (items.length === 0) {
+      return 'Link Storm 当前没有可分享的记录。';
+    }
+    const lines: string[] = [
+      'Link Storm 分享',
+      `共 ${items.length} 条记录`,
+      ''
+    ];
+    for (const idea of items.slice(0, 20)) {
+      lines.push(`- ${idea.title}`);
+      if (idea.tags.length > 0) {
+        lines.push(`  标签: ${idea.tags.join(', ')}`);
+      }
+      if (idea.context.title.length > 0 || idea.context.url.length > 0) {
+        lines.push(`  来源: ${idea.context.title}${idea.context.url ? ` ${idea.context.url}` : ''}`);
+      }
+    }
+    return lines.join('\n');
   }
 
   private previewText(idea: Idea): string {

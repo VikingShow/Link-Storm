@@ -55,11 +55,25 @@ struct Detail {
       .width('100%')
 
       if (this.idea) {
-        if (this.idea.asset?.previewPath) {
+        if (this.idea.asset?.previewPath && this.idea.asset.type === 'handwriting') {
           Image(this.idea.asset.previewPath)
             .width('100%')
             .height(220)
             .objectFit(ImageFit.Contain)
+        }
+        if (this.idea.asset?.type === 'handwriting') {
+          Column({ space: 6 }) {
+            Text(`手写笔画：${this.idea.asset.strokes?.length ?? 0}`)
+              .fontSize(12)
+              .fontColor('#667085')
+            if (this.idea.asset.previewPath) {
+              Text(this.idea.asset.previewPath)
+                .fontSize(12)
+                .fontColor('#667085')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+          }
         }
         if (this.isPlayableAudio()) {
           Row({ space: 8 }) {

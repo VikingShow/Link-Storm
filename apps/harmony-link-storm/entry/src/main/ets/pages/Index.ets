@@ -1,5 +1,8 @@
 import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
+import componentSnapshot from '@ohos.arkui.componentSnapshot';
+import image from '@ohos.multimedia.image';
+import fileIo from '@ohos.file.fs';
 import { HandwritingStroke, Idea, IdeaDraft, IdeaType, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 
@@ -30,6 +33,7 @@ struct Index {
   @State private exportStatus: string = '';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
+  private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
   private canvasContext: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.canvasSettings);
@@ -206,11 +210,12 @@ struct Index {
         Text(this.handwritingText)
           .fontColor('#697386')
 
-        Stack() {
-          Canvas(this.canvasContext)
-            .width('100%')
-            .height(CANVAS_HEIGHT)
-            .backgroundColor('#FFFFFF')
+          Stack() {
+            Canvas(this.canvasContext)
+              .id(this.handwritingCanvasId)
+              .width('100%')
+              .height(CANVAS_HEIGHT)
+              .backgroundColor('#FFFFFF')
             .onReady(() => {
               this.redrawHandwriting();
             })
@@ -402,7 +407,7 @@ struct Index {
         type: 'handwriting',
         localUri: '',
         strokes: this.handwritingStrokes,
-        previewPath: ''
+        previewPath: await this.saveHandwritingPreview()
       } : undefined
     };
 
@@ -457,6 +462,25 @@ struct Index {
     this.handwritingStrokes = [];
     this.currentStrokePoints = [];
     this.redrawHandwriting();
+  }
+
+  private async saveHandwritingPreview(): Promise<string> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const previewPath = `${context.filesDir}/handwriting-${Date.now()}.png`;
+    const pixelMap = await componentSnapshot.get(this.handwritingCanvasId);
+    const packer = image.createImagePacker();
+    const data = await packer.packing(pixelMap, {
+      format: 'image/png',
+      quality: 100
+    });
+    const file = fileIo.openSync(previewPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+    try {
+      fileIo.writeSync(file.fd, data);
+    } finally {
+      fileIo.closeSync(file);
+      await pixelMap.release();
+    }
+    return previewPath;
   }
 
   private handleCanvasTouch(event: TouchEvent): void {

@@ -44,6 +44,12 @@ struct Detail {
       .width('100%')
 
       if (this.idea) {
+        if (this.idea.asset?.previewPath) {
+          Image(this.idea.asset.previewPath)
+            .width('100%')
+            .height(220)
+            .objectFit(ImageFit.Contain)
+        }
         TextInput({ text: this.title, placeholder: '标题' })
           .onChange((value: string) => this.title = value)
         TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })

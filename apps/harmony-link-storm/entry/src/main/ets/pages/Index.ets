@@ -95,8 +95,9 @@ struct Index {
         .buttonStyle(ButtonStyleMode.NORMAL)
         .onClick(async () => {
           try {
+            const summary = await ideaRepository.exportSummary();
             const uri = await ideaRepository.exportToFile();
-            this.exportStatus = `已导出：${uri}`;
+            this.exportStatus = `已导出：${uri}（${summary}）`;
           } catch (err) {
             this.exportStatus = `导出失败：${String(err)}`;
           }
@@ -106,7 +107,11 @@ struct Index {
         .onClick(async () => {
           try {
             const result = await ideaRepository.importFromFile();
-            this.importStatus = `导入完成：新增${result.inserted}，更新${result.updated}，跳过${result.skipped}`;
+            const conflictHint = result.conflicts.length > 0 ? `，冲突${result.conflicts.length}` : '';
+            this.importStatus = `导入完成：新增${result.inserted}，更新${result.updated}，跳过${result.skipped}${conflictHint}`;
+            if (result.conflicts.length > 0) {
+              this.importStatus = `${this.importStatus}，冲突ID：${result.conflicts.slice(0, 5).join(', ')}`;
+            }
             await this.reloadIdeas();
           } catch (err) {
             this.importStatus = `导入失败：${String(err)}`;

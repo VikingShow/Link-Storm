@@ -79,6 +79,7 @@ export interface ImportResult {
   inserted: number;
   updated: number;
   skipped: number;
+  conflicts: string[];
 }
 
 export function ideaTypeLabel(type: IdeaType): string {

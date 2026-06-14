@@ -14,6 +14,7 @@ interface MergeResult {
   inserted: number;
   updated: number;
   skipped: number;
+  conflicts: string[];
   items: Idea[];
 }
 
@@ -104,6 +105,14 @@ export class IdeaRepository {
     } as IdeaExportPayload, null, 2);
   }
 
+  async exportSummary(): Promise<string> {
+    const ideas = await this.list();
+    const active = ideas.filter((idea: Idea) => !idea.isArchived).length;
+    const archived = ideas.length - active;
+    const favorite = ideas.filter((idea: Idea) => idea.isFavorite).length;
+    return `总计${ideas.length}，收藏${favorite}，归档${archived}，活动${active}`;
+  }
+
   async exportToFile(): Promise<string> {
     const context = this.ensureContext();
     const pickerInstance = new picker.DocumentViewPicker(context);
@@ -159,7 +168,8 @@ export class IdeaRepository {
     return {
       inserted: merged.inserted,
       updated: merged.updated,
-      skipped: merged.skipped
+      skipped: merged.skipped,
+      conflicts: merged.conflicts
     };
   }
 
@@ -216,6 +226,7 @@ export class IdeaRepository {
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
+    const conflicts: string[] = [];
 
     for (const idea of existing) {
       map.set(idea.id, idea);
@@ -236,6 +247,7 @@ export class IdeaRepository {
         map.set(idea.id, idea);
         updated++;
       } else {
+        conflicts.push(idea.id);
         skipped++;
       }
     }
@@ -244,6 +256,7 @@ export class IdeaRepository {
       inserted,
       updated,
       skipped,
+      conflicts,
       items: Array.from(map.values()).sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     };
     return result;

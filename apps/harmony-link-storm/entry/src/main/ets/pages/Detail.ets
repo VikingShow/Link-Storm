@@ -1,6 +1,6 @@
 ﻿import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
-import { Idea, IdeaAsset, IdeaFolder, ideaTypeLabel } from '../model/IdeaModels';
+import { Idea, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
 
@@ -21,6 +21,7 @@ struct Detail {
   @State private sourceUrl: string = '';
   @State private folderId: string = '';
   @State private folders: IdeaFolder[] = [];
+  @State private tagsCatalog: IdeaTag[] = [];
   @State private assetLocalUri: string = '';
   @State private assetMimeType: string = '';
   @State private assetDurationMs: number = 0;
@@ -36,6 +37,7 @@ struct Detail {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     audioPlaybackService.setContext(context);
     await this.refreshFolders();
+    await this.refreshTags();
     await this.reload();
   }
 
@@ -141,6 +143,17 @@ struct Detail {
           .onChange((value: string) => this.title = value)
         TextInput({ text: this.tags, placeholder: '鏍囩锛岄€楀彿鍒嗛殧' })
           .onChange((value: string) => this.tags = value)
+        if (this.tagsCatalog.length > 0) {
+          Row({ space: 6 }) {
+            ForEach(this.tagsCatalog, (tag: IdeaTag) => {
+              Button(tag.name)
+                .buttonStyle(ButtonStyleMode.NORMAL)
+                .backgroundColor(this.hasTag(tag.name) ? '#E0F2EE' : '#FFFFFF')
+                .fontColor(this.hasTag(tag.name) ? '#0B4F47' : '#697386')
+                .onClick(() => this.toggleTag(tag.name))
+            }, (tag: IdeaTag) => tag.id)
+          }
+        }
         TextInput({ text: this.sourceTitle, placeholder: '鏉ユ簮鏍囬' })
           .onChange((value: string) => this.sourceTitle = value)
         TextInput({ text: this.sourceUrl, placeholder: '鏉ユ簮閾炬帴' })
@@ -276,6 +289,20 @@ struct Detail {
     return this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
   }
 
+  private hasTag(tag: string): boolean {
+    return this.parseTags().includes(tag);
+  }
+
+  private toggleTag(tag: string): void {
+    const current = new Set(this.parseTags());
+    if (current.has(tag)) {
+      current.delete(tag);
+    } else {
+      current.add(tag);
+    }
+    this.tags = Array.from(current.values()).join(', ');
+  }
+
   @Builder
   private AssetSection() {
     Column({ space: 8 }) {
@@ -350,6 +377,10 @@ struct Detail {
 
   private async refreshFolders(): Promise<void> {
     this.folders = await ideaRepository.listFolders();
+  }
+
+  private async refreshTags(): Promise<void> {
+    this.tagsCatalog = await ideaRepository.listTags();
   }
 
   private contextSummary(): string {

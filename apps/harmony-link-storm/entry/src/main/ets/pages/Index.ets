@@ -5,7 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import { systemShare } from '@kit.ShareKit';
-import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaFolder, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
@@ -60,6 +60,7 @@ struct Index {
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
   @State private folders: IdeaFolder[] = [];
+  @State private tagsCatalog: IdeaTag[] = [];
   private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -74,6 +75,7 @@ struct Index {
     await this.restoreCaptureDraft();
     await this.reloadIdeas();
     await this.reloadFolders();
+    await this.reloadTags();
     this.applyDefaultMode(CANVAS_WIDTH);
   }
 
@@ -506,6 +508,32 @@ struct Index {
         }
       }
 
+      if (this.tagsCatalog.length > 0) {
+        Column({ space: 8 }) {
+          Row() {
+            Text('标签库')
+              .fontSize(12)
+              .fontColor('#667085')
+            Blank()
+            Button('新建标签')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await ideaRepository.createTag(`标签 ${this.tagsCatalog.length + 1}`);
+                await this.reloadTags();
+              })
+          }
+          Row({ space: 6 }) {
+            ForEach(this.tagsCatalog, (tag: IdeaTag) => {
+              Button(tag.name)
+                .buttonStyle(ButtonStyleMode.NORMAL)
+                .backgroundColor(this.tagFilter === tag.name ? tag.color : '#FFFFFF')
+                .fontColor(this.tagFilter === tag.name ? '#FFFFFF' : '#697386')
+                .onClick(() => this.tagFilter = tag.name)
+            }, (tag: IdeaTag) => tag.id)
+          }
+        }
+      }
+
       if (this.selectedIds.length > 0) {
         Row({ space: 8 }) {
           Text(`已选 ${this.selectedIds.length} 条`)
@@ -789,6 +817,10 @@ struct Index {
     this.folders = await ideaRepository.listFolders();
   }
 
+  private async reloadTags(): Promise<void> {
+    this.tagsCatalog = await ideaRepository.listTags();
+  }
+
   private filteredIdeas(): Idea[] {
     const query = this.search.trim().toLowerCase();
     return this.ideas.filter((idea: Idea) => {
@@ -860,16 +892,7 @@ struct Index {
   }
 
   private commonTags(): string[] {
-    const counts = new Map<string, number>();
-    for (const idea of this.ideas) {
-      for (const tag of idea.tags) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map((entry) => entry[0]);
+    return this.tagsCatalog.slice(0, 8).map((tag: IdeaTag) => tag.name);
   }
 
   @Builder

@@ -4,12 +4,13 @@ import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
-import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_KEY = 'ideas_json';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
 const FOLDERS_KEY = 'folders_json';
+const TAGS_KEY = 'tags_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
 const BACKUP_SCHEMA = 'link-storm-backup';
@@ -42,6 +43,50 @@ export class IdeaRepository {
     const raw = await this.ensureStore().get(FOLDERS_KEY, '[]') as string;
     const folders: IdeaFolder[] = JSON.parse(raw) as IdeaFolder[];
     return folders.sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  async listTags(): Promise<IdeaTag[]> {
+    const raw = await this.ensureStore().get(TAGS_KEY, '[]') as string;
+    const tags: IdeaTag[] = JSON.parse(raw) as IdeaTag[];
+    return tags.sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  async createTag(name: string, color: string = '#0B4F47'): Promise<IdeaTag> {
+    const tags = await this.listTags();
+    const now = new Date().toISOString();
+    const tag: IdeaTag = {
+      id: this.createId(),
+      name: name.trim() || '未命名标签',
+      color,
+      createdAt: now,
+      updatedAt: now
+    };
+    tags.unshift(tag);
+    await this.persistTags(tags);
+    return tag;
+  }
+
+  async updateTag(id: string, patch: Partial<IdeaTag>): Promise<void> {
+    const tags = await this.listTags();
+    const now = new Date().toISOString();
+    const next = tags.map((tag: IdeaTag) => {
+      if (tag.id !== id) {
+        return tag;
+      }
+      return {
+        id: tag.id,
+        name: patch.name ?? tag.name,
+        color: patch.color ?? tag.color,
+        createdAt: tag.createdAt,
+        updatedAt: now
+      } as IdeaTag;
+    });
+    await this.persistTags(next);
+  }
+
+  async deleteTag(id: string): Promise<void> {
+    const tags = await this.listTags();
+    await this.persistTags(tags.filter((tag: IdeaTag) => tag.id !== id));
   }
 
   async createFolder(name: string, color: string = '#136F63'): Promise<IdeaFolder> {
@@ -194,12 +239,14 @@ export class IdeaRepository {
 
   async exportJson(): Promise<string> {
     const folders = await this.listFolders();
+    const tags = await this.listTags();
     return JSON.stringify({
       schema: EXPORT_SCHEMA,
       version: 1,
       exportedAt: new Date().toISOString(),
       ideas: await this.list(),
-      folders
+      folders,
+      tags
     } as IdeaExportPayload, null, 2);
   }
 
@@ -248,6 +295,7 @@ export class IdeaRepository {
 
     const ideas = await this.list();
     const folders = await this.listFolders();
+    const tags = await this.listTags();
     const attachmentEntries = await this.collectBackupAttachments(ideas, attachmentsDir);
     const backup: IdeaBackupPayload = {
       schema: BACKUP_SCHEMA,
@@ -255,6 +303,7 @@ export class IdeaRepository {
       exportedAt: new Date().toISOString(),
       ideas,
       folders,
+      tags,
       attachments: attachmentEntries
     };
     const manifestFile = fileIo.openSync(manifestPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
@@ -306,6 +355,9 @@ export class IdeaRepository {
     if (Array.isArray((parsed as IdeaBackupPayload).folders)) {
       await this.persistFolders(this.mergeFolders(await this.listFolders(), (parsed as IdeaBackupPayload).folders, strategy));
     }
+    if (Array.isArray((parsed as IdeaBackupPayload).tags)) {
+      await this.persistTags(this.mergeTags(await this.listTags(), (parsed as IdeaBackupPayload).tags, strategy));
+    }
     this.cleanupBackupTemp(tempRoot);
     return {
       inserted: merged.inserted,
@@ -334,6 +386,9 @@ export class IdeaRepository {
     await this.persist(merged.items);
     if (Array.isArray(parsed.folders)) {
       await this.persistFolders(this.mergeFolders(await this.listFolders(), parsed.folders as IdeaFolder[], strategy));
+    }
+    if (Array.isArray(parsed.tags)) {
+      await this.persistTags(this.mergeTags(await this.listTags(), parsed.tags as IdeaTag[], strategy));
     }
     return {
       inserted: merged.inserted,
@@ -535,6 +590,11 @@ export class IdeaRepository {
     await this.ensureStore().flush();
   }
 
+  private async persistTags(tags: IdeaTag[]): Promise<void> {
+    await this.ensureStore().put(TAGS_KEY, JSON.stringify(tags));
+    await this.ensureStore().flush();
+  }
+
   private ensureStore(): preferences.Preferences {
     if (!this.pref) {
       throw new Error('IdeaRepository is not initialized');
@@ -629,6 +689,31 @@ export class IdeaRepository {
     }
 
     return Array.from(map.values()).sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private mergeTags(existing: IdeaTag[], incoming: IdeaTag[], strategy: ImportConflictStrategy): IdeaTag[] {
+    const map = new Map<string, IdeaTag>();
+    for (const tag of existing) {
+      map.set(tag.id, tag);
+    }
+
+    for (const tag of incoming) {
+      if (!tag || typeof tag.id !== 'string') {
+        continue;
+      }
+      const current = map.get(tag.id);
+      if (!current) {
+        map.set(tag.id, tag);
+        continue;
+      }
+      const incomingNewer = Date.parse(tag.updatedAt) > Date.parse(current.updatedAt);
+      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
+      if (shouldOverwrite) {
+        map.set(tag.id, tag);
+      }
+    }
+
+    return Array.from(map.values()).sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
   private timestampStamp(): string {

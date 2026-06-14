@@ -19,6 +19,14 @@ export interface IdeaFolder {
   updatedAt: string;
 }
 
+export interface IdeaTag {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StrokePoint {
   x: number;
   y: number;
@@ -95,6 +103,7 @@ export interface IdeaExportPayload {
   exportedAt: string;
   ideas: Idea[];
   folders: IdeaFolder[];
+  tags: IdeaTag[];
 }
 
 export interface IdeaBackupPayload {
@@ -103,6 +112,7 @@ export interface IdeaBackupPayload {
   exportedAt: string;
   ideas: Idea[];
   folders: IdeaFolder[];
+  tags: IdeaTag[];
   attachments: IdeaBackupAttachment[];
 }
 

@@ -522,6 +522,7 @@ export class IdeaRepository {
       strokes: current.asset?.strokes
     };
     await this.update(ideaId, { asset: nextAsset });
+    this.cleanupManagedIdeaAssetFiles(current.asset, [nextAsset.localUri, nextAsset.previewPath || '']);
     return nextAsset;
   }
 
@@ -530,14 +531,8 @@ export class IdeaRepository {
     if (!current) {
       throw new Error('Idea not found');
     }
-    const storedPath = current.asset?.localUri;
-    if (storedPath && this.isManagedAttachmentPath(storedPath)) {
-      this.removeFileIfExists(storedPath);
-    }
-    if (current.asset?.previewPath && current.asset.previewPath !== storedPath && this.isManagedAttachmentPath(current.asset.previewPath)) {
-      this.removeFileIfExists(current.asset.previewPath);
-    }
     await this.update(ideaId, { asset: undefined });
+    this.cleanupManagedIdeaAssetFiles(current.asset);
   }
 
   async copyAttachmentToIdeaStorage(sourcePath: string, ideaId: string, kind: string): Promise<string> {
@@ -756,12 +751,38 @@ export class IdeaRepository {
     }
   }
 
+  private cleanupManagedIdeaAssetFiles(asset?: IdeaAsset, keepPaths: string[] = []): void {
+    if (!asset) {
+      return;
+    }
+    const keepSet = new Set(keepPaths.filter((path: string) => path.length > 0));
+    const storedPath = asset.localUri;
+    if (storedPath && this.isManagedAttachmentPath(storedPath) && !keepSet.has(storedPath)) {
+      this.removeFileIfExists(storedPath);
+    }
+    const previewPath = asset.previewPath;
+    if (previewPath && previewPath !== storedPath && this.isManagedAttachmentPath(previewPath) && !keepSet.has(previewPath)) {
+      this.removeFileIfExists(previewPath);
+    }
+  }
+
+  private cleanupManagedPath(path: string | undefined): void {
+    if (!path || !this.isManagedAttachmentPath(path)) {
+      return;
+    }
+    this.removeFileIfExists(path);
+  }
+
   private parseCaptureDraft(value: string): CaptureDraftState | undefined {
     if (!value) {
       return undefined;
     }
     try {
-      return JSON.parse(value) as CaptureDraftState;
+      const parsed = JSON.parse(value) as CaptureDraftState;
+      if (!parsed.handwritingPreviewPath) {
+        parsed.handwritingPreviewPath = undefined;
+      }
+      return parsed;
     } catch {
       return undefined;
     }

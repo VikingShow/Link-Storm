@@ -9,6 +9,8 @@ Date: 2026-06-15
 - `Detail.ets` now exposes attachment and handwriting preview open actions
 - `IdeaRepository` now uses native `relationalStore` for ideas, folders, and tags
 - Capture draft state now persists through native `relationalStore` with legacy file migration fallback
+- Attachment replacement now cleans up old managed files
+- Handwriting preview state now persists through the capture draft and uses managed storage
 
 ## Verified milestone
 
@@ -18,6 +20,10 @@ feat(harmony): improve detail attachment and preview flow
 
 ```text
 feat(harmony): migrate capture draft persistence to relational store
+```
+
+```text
+feat(harmony): polish managed attachment and handwriting preview flow
 ```
 
 Verification:

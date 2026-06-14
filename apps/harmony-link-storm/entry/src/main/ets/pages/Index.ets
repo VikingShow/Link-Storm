@@ -47,6 +47,7 @@ struct Index {
   @State private audioPath: string = '';
   @State private audioDurationMs: number = 0;
   @State private handwritingText: string = '手写能力预留，当前已接入 Canvas';
+  @State private handwritingPreviewPath: string = '';
   @State private search: string = '';
   @State private typeFilter: string = 'all';
   @State private tagFilter: string = '';
@@ -812,6 +813,15 @@ struct Index {
   }
 
   private async saveDraft(): Promise<void> {
+    let handwritingPreviewPath = this.handwritingPreviewPath;
+    if (this.activeType === IdeaType.HANDWRITING) {
+      const previousPreviewPath = handwritingPreviewPath;
+      handwritingPreviewPath = await this.saveHandwritingPreview();
+      this.handwritingPreviewPath = handwritingPreviewPath;
+      if (previousPreviewPath.length > 0 && previousPreviewPath !== handwritingPreviewPath) {
+        this.removeManagedHandwritingPreview(previousPreviewPath);
+      }
+    }
     const draft: IdeaDraft = {
       title: this.title,
       type: this.activeType,
@@ -829,7 +839,7 @@ struct Index {
         type: 'handwriting',
         localUri: '',
         strokes: this.handwritingStrokes,
-        previewPath: await this.saveHandwritingPreview()
+        previewPath: handwritingPreviewPath || undefined
       } : this.activeType === IdeaType.AUDIO ? {
         type: 'audio',
         localUri: this.audioPath,
@@ -839,14 +849,14 @@ struct Index {
     };
 
     await ideaRepository.save(draft);
-    this.resetForm();
+    this.resetForm(true);
     await ideaRepository.clearCaptureDraft();
     shareCaptureService.clearShareState();
     this.shareCaptureSummary = '';
     await this.reloadIdeas();
   }
 
-  private resetForm(): void {
+  private resetForm(preserveHandwritingPreview: boolean = false): void {
     this.title = '';
     this.tags = '';
     this.sourceTitle = '';
@@ -858,7 +868,7 @@ struct Index {
     this.audioPath = '';
     this.audioDurationMs = 0;
     this.handwritingText = '手写能力预留，当前已接入 Canvas';
-    this.clearHandwriting();
+    this.clearHandwriting(preserveHandwritingPreview);
   }
 
   private async restoreCaptureDraft(): Promise<void> {
@@ -881,6 +891,7 @@ struct Index {
     this.handwritingText = draft.handwritingText;
     this.handwritingStrokes = draft.handwritingStrokes ?? [];
     this.currentStrokePoints = draft.currentStrokePoints ?? [];
+    this.handwritingPreviewPath = draft.handwritingPreviewPath ?? '';
     this.redrawHandwriting();
   }
 
@@ -901,6 +912,7 @@ struct Index {
       handwritingText: this.handwritingText,
       handwritingStrokes: this.handwritingStrokes,
       currentStrokePoints: this.currentStrokePoints,
+      handwritingPreviewPath: this.handwritingPreviewPath || undefined,
       savedAt: new Date().toISOString()
     };
     await ideaRepository.saveCaptureDraft(draft);
@@ -1206,9 +1218,13 @@ struct Index {
     return parts.length > 0 ? `当前筛选：${parts.join('，')}` : '当前显示全部记录。';
   }
 
-  private clearHandwriting(): void {
+  private clearHandwriting(preservePreview: boolean = false): void {
     this.handwritingStrokes = [];
     this.currentStrokePoints = [];
+    if (!preservePreview) {
+      this.removeManagedHandwritingPreview();
+      this.handwritingPreviewPath = '';
+    }
     this.redrawHandwriting();
   }
 
@@ -1223,14 +1239,21 @@ struct Index {
   }
 
   private async persistHandwritingPreview(): Promise<void> {
+    const previousPreviewPath = this.handwritingPreviewPath;
     const previewPath = await this.saveHandwritingPreview();
-    this.handwritingText = `??????${previewPath}`;
+    this.handwritingPreviewPath = previewPath;
+    this.handwritingText = `手写预览：${previewPath}`;
+    if (previousPreviewPath.length > 0 && previousPreviewPath !== previewPath) {
+      this.removeManagedHandwritingPreview(previousPreviewPath);
+    }
     void this.persistCaptureDraft();
   }
 
   private async saveHandwritingPreview(): Promise<string> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const previewPath = `${context.filesDir}/handwriting-${Date.now()}.png`;
+    const previewDir = `${context.filesDir}/idea-attachments`;
+    fileIo.mkdirSync(previewDir);
+    const previewPath = `${previewDir}/handwriting-${Date.now()}.png`;
     const pixelMap = await componentSnapshot.get(this.handwritingCanvasId);
     const packer = image.createImagePacker();
     const data = await packer.packing(pixelMap, {
@@ -1245,6 +1268,21 @@ struct Index {
       await pixelMap.release();
     }
     return previewPath;
+  }
+
+  private removeManagedHandwritingPreview(pathToRemove?: string): void {
+    const targetPath = pathToRemove ?? this.handwritingPreviewPath;
+    if (targetPath.length === 0) {
+      return;
+    }
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      if (targetPath.startsWith(context.filesDir) && fileIo.accessSync(targetPath)) {
+        fileIo.unlinkSync(targetPath);
+      }
+    } catch {
+      // ignore cleanup failures
+    }
   }
 
   private handleCanvasTouch(event: TouchEvent): void {

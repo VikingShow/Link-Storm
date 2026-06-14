@@ -32,6 +32,7 @@ interface ShareOptions {
 @Component
 struct Index {
   @State private activeType: IdeaType = IdeaType.DOCUMENT;
+  @State private layoutMode: string = 'desktop';
   @State private deviceHint: string = '桌面/二合一尺寸：默认文档';
   @State private title: string = '';
   @State private tags: string = '';
@@ -73,12 +74,22 @@ struct Index {
   build() {
     Column({ space: 16 }) {
       this.Header()
-      Row({ space: 16 }) {
-        this.CapturePanel()
-        this.LibraryPanel()
+      Column({ space: 16 }) {
+        if (this.layoutMode === 'compact') {
+          Column({ space: 16 }) {
+            this.CapturePanel()
+            this.LibraryPanel()
+          }
+          .width('100%')
+        } else {
+          Row({ space: 16 }) {
+            this.CapturePanel()
+            this.LibraryPanel()
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Top)
+        }
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Top)
       .layoutWeight(1)
     }
     .padding(20)
@@ -529,12 +540,15 @@ struct Index {
     if (width < PHONE_BREAKPOINT) {
       this.deviceHint = '手机尺寸：默认语音';
       this.activeType = IdeaType.AUDIO;
+      this.layoutMode = 'compact';
     } else if (width >= PHONE_BREAKPOINT && width < TABLET_BREAKPOINT) {
       this.deviceHint = '平板尺寸：默认手写';
       this.activeType = IdeaType.HANDWRITING;
+      this.layoutMode = 'compact';
     } else {
       this.deviceHint = '桌面/二合一尺寸：默认文档';
       this.activeType = IdeaType.DOCUMENT;
+      this.layoutMode = 'desktop';
     }
   }
 

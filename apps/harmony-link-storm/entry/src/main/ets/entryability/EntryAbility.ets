@@ -2,12 +2,14 @@ import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { floatingBallService } from '../services/FloatingBallService';
+import { shareCaptureService } from '../services/ShareCaptureService';
 
 const DOMAIN = 0x0001;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'EntryAbility', 'onCreate');
+    shareCaptureService.applyWant(want);
   }
 
   onDestroy(): void {

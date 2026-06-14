@@ -52,6 +52,14 @@
             "actions": [
               "action.system.home"
             ]
+          },
+          {
+            "entities": [
+              "entity.system.browsable"
+            ],
+            "actions": [
+              "ohos.want.action.viewData"
+            ]
           }
         ]
       }

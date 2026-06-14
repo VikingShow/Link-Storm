@@ -10,6 +10,7 @@ import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
 import { ideaRepository } from '../repository/IdeaRepository';
+import { shareCaptureService } from '../services/ShareCaptureService';
 
 const PHONE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1100;
@@ -64,6 +65,7 @@ struct Index {
   @State private tagsCatalog: IdeaTag[] = [];
   @State private batchFolderId: string = '';
   @State private batchTagsInput: string = '';
+  @State private shareCaptureSummary: string = '';
   private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -79,6 +81,7 @@ struct Index {
     await this.reloadIdeas();
     await this.reloadFolders();
     await this.reloadTags();
+    this.applyShareCapture();
     this.applyDefaultMode(CANVAS_WIDTH);
   }
 
@@ -820,6 +823,8 @@ struct Index {
     await ideaRepository.save(draft);
     this.resetForm();
     await ideaRepository.clearCaptureDraft();
+    shareCaptureService.clearShareState();
+    this.shareCaptureSummary = '';
     await this.reloadIdeas();
   }
 
@@ -1291,4 +1296,27 @@ struct Index {
     this.audioDurationMs = result.durationMs;
     this.audioStatus = `已保存 ${Math.round(result.durationMs / 1000)} 秒`;
   }
+  private applyShareCapture(): void {
+    const shareState = shareCaptureService.getShareState();
+    if (shareState.capturedAt.length === 0) {
+      return;
+    }
+    if (shareState.title.length > 0 && this.title.length === 0) {
+      this.title = shareState.title;
+    }
+    if (shareState.sharedText.length > 0 && this.documentText.length === 0) {
+      this.documentText = shareState.sharedText;
+    }
+    if (shareState.url.length > 0 && this.sourceUrl.length === 0) {
+      this.sourceUrl = shareState.url;
+    }
+    if (shareState.sourceApp.length > 0 && this.sourceTitle.length === 0) {
+      this.sourceTitle = shareState.sourceApp;
+    }
+    if (shareState.attachments.length > 0 && this.note.length === 0) {
+      this.note = '?????' + shareState.attachments.join(', ');
+    }
+    this.shareCaptureSummary = '??????' + shareState.contextType;
+  }
+
 }

@@ -11,6 +11,12 @@ export interface IdeaContext {
   capturedAt: string;
 }
 
+export interface IdeaFolder {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface StrokePoint {
   x: number;
   y: number;
@@ -40,6 +46,7 @@ export interface Idea {
   plainText: string;
   note: string;
   tags: string[];
+  folderId?: string;
   context: IdeaContext;
   asset?: IdeaAsset;
   isFavorite: boolean;
@@ -56,6 +63,7 @@ export interface IdeaDraft {
   plainText: string;
   note: string;
   tags: string[];
+  folderId?: string;
   context: IdeaContext;
   asset?: IdeaAsset;
 }

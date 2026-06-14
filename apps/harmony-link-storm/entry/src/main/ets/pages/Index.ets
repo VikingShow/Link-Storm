@@ -32,6 +32,8 @@ struct Index {
   @State private handwritingText: string = '手写能力预留，当前已接入 Canvas';
   @State private search: string = '';
   @State private typeFilter: string = 'all';
+  @State private tagFilter: string = '';
+  @State private folderFilter: string = 'all';
   @State private ideas: Idea[] = [];
   @State private importStatus: string = '';
   @State private exportStatus: string = '';
@@ -300,6 +302,20 @@ struct Index {
         this.FilterButton(IdeaType.DOCUMENT, '文档')
       }
 
+      if (this.commonTags().length > 0) {
+        Column({ space: 8 }) {
+          Text('常用标签')
+            .fontSize(12)
+            .fontColor('#667085')
+          Row({ space: 6 }) {
+            this.TagButton('', '全部标签')
+            ForEach(this.commonTags(), (tag: string) => {
+              this.TagButton(tag, tag)
+            }, (tag: string) => tag)
+          }
+        }
+      }
+
       List({ space: 10 }) {
         ForEach(this.filteredIdeas(), (idea: Idea) => {
           ListItem() {
@@ -323,6 +339,15 @@ struct Index {
       .backgroundColor(this.typeFilter === value ? '#E0F2EE' : '#FFFFFF')
       .fontColor(this.typeFilter === value ? '#0B4F47' : '#697386')
       .onClick(() => this.typeFilter = value)
+  }
+
+  @Builder
+  private TagButton(value: string, label: string) {
+    Button(label)
+      .buttonStyle(ButtonStyleMode.NORMAL)
+      .backgroundColor(this.tagFilter === value ? '#136F63' : '#FFFFFF')
+      .fontColor(this.tagFilter === value ? '#FFFFFF' : '#697386')
+      .onClick(() => this.tagFilter = value)
   }
 
   @Builder
@@ -424,6 +449,7 @@ struct Index {
       plainText: this.activeType === IdeaType.DOCUMENT ? this.documentText : '',
       note: this.note,
       tags: this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0),
+      folderId: this.folderFilter === 'all' ? undefined : this.folderFilter,
       context: {
         title: this.sourceTitle,
         url: this.sourceUrl,
@@ -470,6 +496,7 @@ struct Index {
     const query = this.search.trim().toLowerCase();
     return this.ideas.filter((idea: Idea) => {
       const typeOk = this.typeFilter === 'all' || idea.type === this.typeFilter;
+      const tagOk = !this.tagFilter || idea.tags.includes(this.tagFilter);
       const text = [
         idea.title,
         idea.plainText,
@@ -478,8 +505,21 @@ struct Index {
         idea.context.url,
         idea.tags.join(' ')
       ].join(' ').toLowerCase();
-      return typeOk && (!query || text.includes(query));
+      return typeOk && tagOk && (!query || text.includes(query));
     });
+  }
+
+  private commonTags(): string[] {
+    const counts = new Map<string, number>();
+    for (const idea of this.ideas) {
+      for (const tag of idea.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map((entry) => entry[0]);
   }
 
   private previewText(idea: Idea): string {

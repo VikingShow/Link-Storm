@@ -17,6 +17,7 @@ struct Detail {
   @State private plainText: string = '';
   @State private sourceTitle: string = '';
   @State private sourceUrl: string = '';
+  @State private folderId: string = '';
   @State private assetLocalUri: string = '';
   @State private assetMimeType: string = '';
   @State private assetDurationMs: number = 0;
@@ -64,6 +65,8 @@ struct Detail {
           .onChange((value: string) => this.sourceTitle = value)
         TextInput({ text: this.sourceUrl, placeholder: '来源链接' })
           .onChange((value: string) => this.sourceUrl = value)
+        TextInput({ text: this.folderId, placeholder: '文件夹编号' })
+          .onChange((value: string) => this.folderId = value)
         TextArea({ text: this.plainText, placeholder: '正文' })
           .height(160)
           .onChange((value: string) => this.plainText = value)
@@ -101,6 +104,7 @@ struct Detail {
                 plainText: this.plainText,
                 note: this.note,
                 tags: this.parseTags(),
+                folderId: this.folderId || undefined,
                 context: {
                   title: this.sourceTitle,
                   url: this.sourceUrl,
@@ -152,6 +156,7 @@ struct Detail {
     this.plainText = loaded.plainText;
     this.sourceTitle = loaded.context.title;
     this.sourceUrl = loaded.context.url;
+    this.folderId = loaded.folderId ?? '';
     this.assetLocalUri = loaded.asset?.localUri ?? '';
     this.assetMimeType = loaded.asset?.mimeType ?? '';
     this.assetDurationMs = loaded.asset?.durationMs ?? 0;

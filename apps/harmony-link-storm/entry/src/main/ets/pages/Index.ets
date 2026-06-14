@@ -61,6 +61,8 @@ struct Index {
   @State private currentStrokePoints: StrokePoint[] = [];
   @State private folders: IdeaFolder[] = [];
   @State private tagsCatalog: IdeaTag[] = [];
+  @State private batchFolderId: string = '';
+  @State private batchTagsInput: string = '';
   private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -561,6 +563,43 @@ struct Index {
             .onClick(async () => {
               await this.batchDelete();
             })
+        }
+
+        Column({ space: 8 }) {
+          Text('批量整理')
+            .fontSize(12)
+            .fontColor('#667085')
+          Row({ space: 8 }) {
+            TextInput({ placeholder: '批量文件夹 ID', text: this.batchFolderId })
+              .onChange((value: string) => this.batchFolderId = value)
+              .layoutWeight(1)
+            Button('移动')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await ideaRepository.assignFolder(this.selectedIds, this.batchFolderId || undefined);
+                await this.reloadIdeas();
+                this.batchFolderId = '';
+              })
+          }
+          Row({ space: 8 }) {
+            TextInput({ placeholder: '标签，逗号分隔', text: this.batchTagsInput })
+              .onChange((value: string) => this.batchTagsInput = value)
+              .layoutWeight(1)
+            Button('添加标签')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await ideaRepository.assignTags(this.selectedIds, this.batchTagsInput.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0));
+                await this.reloadIdeas();
+                this.batchTagsInput = '';
+              })
+            Button('移除标签')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await ideaRepository.removeTags(this.selectedIds, this.batchTagsInput.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0));
+                await this.reloadIdeas();
+                this.batchTagsInput = '';
+              })
+          }
         }
       }
 

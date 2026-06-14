@@ -89,6 +89,104 @@ export class IdeaRepository {
     await this.persistTags(tags.filter((tag: IdeaTag) => tag.id !== id));
   }
 
+  async assignFolder(ids: string[], folderId?: string): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    const ideas = await this.list();
+    const targetSet = new Set(ids);
+    const now = new Date().toISOString();
+    const next = ideas.map((idea: Idea) => {
+      if (!targetSet.has(idea.id)) {
+        return idea;
+      }
+      return {
+        id: idea.id,
+        title: idea.title,
+        type: idea.type,
+        plainText: idea.plainText,
+        note: idea.note,
+        tags: idea.tags,
+        folderId: folderId,
+        context: idea.context,
+        asset: idea.asset,
+        isFavorite: idea.isFavorite,
+        isArchived: idea.isArchived,
+        syncStatus: idea.syncStatus,
+        aiStatus: idea.aiStatus,
+        createdAt: idea.createdAt,
+        updatedAt: now
+      } as Idea;
+    });
+    await this.persist(next);
+  }
+
+  async assignTags(ids: string[], tags: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    const ideas = await this.list();
+    const targetSet = new Set(ids);
+    const mergedTags = Array.from(new Set(tags.map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)));
+    const now = new Date().toISOString();
+    const next = ideas.map((idea: Idea) => {
+      if (!targetSet.has(idea.id)) {
+        return idea;
+      }
+      return {
+        id: idea.id,
+        title: idea.title,
+        type: idea.type,
+        plainText: idea.plainText,
+        note: idea.note,
+        tags: Array.from(new Set([...idea.tags, ...mergedTags])),
+        folderId: idea.folderId,
+        context: idea.context,
+        asset: idea.asset,
+        isFavorite: idea.isFavorite,
+        isArchived: idea.isArchived,
+        syncStatus: idea.syncStatus,
+        aiStatus: idea.aiStatus,
+        createdAt: idea.createdAt,
+        updatedAt: now
+      } as Idea;
+    });
+    await this.persist(next);
+  }
+
+  async removeTags(ids: string[], tags: string[]): Promise<void> {
+    if (ids.length === 0 || tags.length === 0) {
+      return;
+    }
+    const ideas = await this.list();
+    const targetSet = new Set(ids);
+    const removeSet = new Set(tags.map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0));
+    const now = new Date().toISOString();
+    const next = ideas.map((idea: Idea) => {
+      if (!targetSet.has(idea.id)) {
+        return idea;
+      }
+      return {
+        id: idea.id,
+        title: idea.title,
+        type: idea.type,
+        plainText: idea.plainText,
+        note: idea.note,
+        tags: idea.tags.filter((tag: string) => !removeSet.has(tag)),
+        folderId: idea.folderId,
+        context: idea.context,
+        asset: idea.asset,
+        isFavorite: idea.isFavorite,
+        isArchived: idea.isArchived,
+        syncStatus: idea.syncStatus,
+        aiStatus: idea.aiStatus,
+        createdAt: idea.createdAt,
+        updatedAt: now
+      } as Idea;
+    });
+    await this.persist(next);
+  }
+
   async createFolder(name: string, color: string = '#136F63'): Promise<IdeaFolder> {
     const folders = await this.listFolders();
     const now = new Date().toISOString();

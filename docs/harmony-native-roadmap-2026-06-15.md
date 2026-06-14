@@ -8,11 +8,16 @@ Date: 2026-06-15
 - `EntryAbility.onNewWant` now re-applies share-capture intents
 - `Detail.ets` now exposes attachment and handwriting preview open actions
 - `IdeaRepository` now uses native `relationalStore` for ideas, folders, and tags
+- Capture draft state now persists through native `relationalStore` with legacy file migration fallback
 
 ## Verified milestone
 
 ```text
 feat(harmony): improve detail attachment and preview flow
+```
+
+```text
+feat(harmony): migrate capture draft persistence to relational store
 ```
 
 Verification:

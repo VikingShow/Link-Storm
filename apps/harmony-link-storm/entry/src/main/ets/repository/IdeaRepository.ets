@@ -10,6 +10,8 @@ const STORE_NAME = 'link_storm_ideas';
 const IDEAS_TABLE = 'ideas';
 const FOLDERS_TABLE = 'folders';
 const TAGS_TABLE = 'tags';
+const CAPTURE_DRAFT_TABLE = 'capture_draft_state';
+const CAPTURE_DRAFT_ID = 'capture_draft';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
@@ -22,6 +24,12 @@ interface MergeResult {
   skipped: number;
   conflicts: string[];
   items: Idea[];
+}
+
+interface CaptureDraftRecord {
+  id: string;
+  payload: string;
+  savedAt: string;
 }
 
 type RdbStore = relationalStore.RdbStore;
@@ -303,29 +311,45 @@ export class IdeaRepository {
   }
 
   async saveCaptureDraft(draft: CaptureDraftState): Promise<void> {
-    const context = this.ensureContext();
-    this.writeTextFile(`${context.filesDir}/${CAPTURE_DRAFT_KEY}`, JSON.stringify(draft));
+    const record: CaptureDraftRecord = {
+      id: CAPTURE_DRAFT_ID,
+      payload: JSON.stringify(draft),
+      savedAt: draft.savedAt || new Date().toISOString()
+    };
+    const store = this.ensureStore();
+    const predicates = this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID);
+    const existing = await store.query(predicates);
+    try {
+      if (existing.goToFirstRow()) {
+        await store.update(this.captureDraftToBucket(record), predicates);
+      } else {
+        await store.insert(CAPTURE_DRAFT_TABLE, this.captureDraftToBucket(record));
+      }
+    } finally {
+      existing.close();
+    }
   }
 
   async loadCaptureDraft(): Promise<CaptureDraftState | undefined> {
-    const context = this.ensureContext();
-    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
-    if (!fileIo.accessSync(path)) {
-      return undefined;
-    }
+    const resultSet = await this.ensureStore().query(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID));
     try {
-      return JSON.parse(fileIo.readTextSync(path)) as CaptureDraftState;
-    } catch {
-      return undefined;
+      if (resultSet.goToFirstRow()) {
+        return this.parseCaptureDraft(resultSet.getString(resultSet.getColumnIndex('payload')));
+      }
+    } finally {
+      resultSet.close();
     }
+    const legacyDraft = this.loadLegacyCaptureDraft();
+    if (legacyDraft) {
+      await this.saveCaptureDraft(legacyDraft);
+      this.clearLegacyCaptureDraft();
+    }
+    return legacyDraft;
   }
 
   async clearCaptureDraft(): Promise<void> {
-    const context = this.ensureContext();
-    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
-    if (fileIo.accessSync(path)) {
-      fileIo.unlinkSync(path);
-    }
+    await this.ensureStore().delete(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID));
+    this.clearLegacyCaptureDraft();
   }
 
   async delete(id: string): Promise<void> {
@@ -561,6 +585,11 @@ export class IdeaRepository {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )`);
+    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${CAPTURE_DRAFT_TABLE} (
+      id TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      savedAt TEXT NOT NULL
+    )`);
   }
 
   private async importPayloadIdeas(incoming: Idea[], strategy: ImportConflictStrategy): Promise<ImportResult> {
@@ -708,6 +737,14 @@ export class IdeaRepository {
     };
   }
 
+  private captureDraftToBucket(record: CaptureDraftRecord): ValuesBucket {
+    return {
+      id: record.id,
+      payload: record.payload,
+      savedAt: record.savedAt
+    };
+  }
+
   private parseAssetJson(value: string | undefined): IdeaAsset | undefined {
     if (!value) {
       return undefined;
@@ -716,6 +753,38 @@ export class IdeaRepository {
       return JSON.parse(value) as IdeaAsset;
     } catch {
       return undefined;
+    }
+  }
+
+  private parseCaptureDraft(value: string): CaptureDraftState | undefined {
+    if (!value) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(value) as CaptureDraftState;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private loadLegacyCaptureDraft(): CaptureDraftState | undefined {
+    const context = this.ensureContext();
+    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
+    if (!fileIo.accessSync(path)) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(fileIo.readTextSync(path)) as CaptureDraftState;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private clearLegacyCaptureDraft(): void {
+    const context = this.ensureContext();
+    const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
+    if (fileIo.accessSync(path)) {
+      fileIo.unlinkSync(path);
     }
   }
 

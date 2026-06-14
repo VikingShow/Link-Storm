@@ -1,4 +1,5 @@
 ﻿import router from '@ohos.router';
+import Want from '@ohos.app.ability.Want';
 import { common } from '@kit.AbilityKit';
 import { Idea, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
@@ -67,6 +68,22 @@ struct Detail {
           Text(this.contextSummary())
             .fontSize(12)
             .fontColor('#667085')
+          Row({ space: 8 }) {
+            Button('打开来源')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .enabled(this.normalizeSourceUrl(this.sourceUrl || this.idea.context.url).length > 0)
+              .onClick(async () => {
+                await this.openSourceUrl();
+              })
+            if ((this.sourceUrl || this.idea.context.url).length > 0) {
+              Text(this.sourceUrl || this.idea.context.url)
+                .fontSize(12)
+                .fontColor('#136F63')
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+          }
           if (this.idea.context.manualNote.length > 0) {
             Text(this.idea.context.manualNote)
               .fontSize(12)
@@ -398,6 +415,36 @@ struct Detail {
       return '无来源链接，已保存为手动上下文。';
     }
     return parts.join(' · ');
+  }
+
+  private async openSourceUrl(): Promise<void> {
+    const normalized = this.normalizeSourceUrl(this.sourceUrl || this.idea?.context.url || '');
+    if (!normalized) {
+      this.status = '没有可打开的来源链接';
+      return;
+    }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const want = new Want();
+    want.action = 'ohos.want.action.viewData';
+    want.entities = ['entity.system.browsable'];
+    want.uri = normalized;
+    try {
+      await context.startAbility(want);
+      this.status = '已打开来源链接';
+    } catch (err) {
+      this.status = `打开来源失败：${String(err)}`;
+    }
+  }
+
+  private normalizeSourceUrl(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return `https://${trimmed}`;
   }
 
   private isPlayableAudio(): boolean {

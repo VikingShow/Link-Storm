@@ -90,6 +90,7 @@ export interface CaptureDraftState {
   audioStatus: string;
   audioPath: string;
   audioDurationMs: number;
+  audioRecorderState: string;
   handwritingText: string;
   handwritingStrokes: HandwritingStroke[];
   currentStrokePoints: StrokePoint[];

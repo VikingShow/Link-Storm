@@ -8,13 +8,14 @@ export interface AudioRecordResult {
   durationMs: number;
 }
 
-type RecorderState = 'idle' | 'recording' | 'stopped';
+type RecorderState = 'idle' | 'recording' | 'paused';
 
 export class AudioRecordService {
   private static instance: AudioRecordService | undefined;
   private context: common.UIAbilityContext | undefined;
   private state: RecorderState = 'idle';
   private startedAt = 0;
+  private elapsedBeforePause = 0;
   private currentPath = '';
   private avRecorder: media.AVRecorder | undefined;
   private fileHandle: fileIo.File | undefined;
@@ -37,9 +38,17 @@ export class AudioRecordService {
     return this.state === 'recording';
   }
 
+  isPaused(): boolean {
+    return this.state === 'paused';
+  }
+
+  getState(): RecorderState {
+    return this.state;
+  }
+
   async start(): Promise<void> {
     const context = this.ensureContext();
-    if (this.state === 'recording') {
+    if (this.state === 'recording' || this.state === 'paused') {
       return;
     }
     this.currentPath = `${context.filesDir}/voice-${Date.now()}.m4a`;
@@ -64,6 +73,7 @@ export class AudioRecordService {
       await this.avRecorder.prepare(config);
       await this.avRecorder.start();
       this.startedAt = Date.now();
+      this.elapsedBeforePause = 0;
       this.state = 'recording';
     } catch {
       this.cleanupRecorder();
@@ -71,27 +81,79 @@ export class AudioRecordService {
     }
   }
 
-  async stop(): Promise<AudioRecordResult> {
+  async pause(): Promise<void> {
     if (this.state !== 'recording') {
+      return;
+    }
+    if (!this.avRecorder) {
+      throw new Error('Recorder is not initialized');
+    }
+    await this.avRecorder.pause();
+    this.elapsedBeforePause += Date.now() - this.startedAt;
+    this.startedAt = 0;
+    this.state = 'paused';
+  }
+
+  async resume(): Promise<void> {
+    if (this.state !== 'paused') {
+      return;
+    }
+    if (!this.avRecorder) {
+      throw new Error('Recorder is not initialized');
+    }
+    await this.avRecorder.resume();
+    this.startedAt = Date.now();
+    this.state = 'recording';
+  }
+
+  async stop(): Promise<AudioRecordResult> {
+    if (this.state !== 'recording' && this.state !== 'paused') {
       throw new Error('Recorder is not active');
     }
     const resultPath = this.currentPath;
-    const startedAt = this.startedAt;
+    const durationMs = this.totalDurationMs();
     try {
       await this.avRecorder?.stop();
-      await this.avRecorder?.reset();
     } finally {
       await this.avRecorder?.release();
       this.cleanupRecorder();
       this.state = 'idle';
       this.startedAt = 0;
+      this.elapsedBeforePause = 0;
     }
     const result: AudioRecordResult = {
       path: resultPath,
       mimeType: 'audio/mp4',
-      durationMs: Math.max(1, Date.now() - startedAt)
+      durationMs: Math.max(1, durationMs)
     };
     return result;
+  }
+
+  async cancel(): Promise<void> {
+    if (this.state === 'idle') {
+      return;
+    }
+    try {
+      await this.avRecorder?.stop();
+    } catch {
+      // Ignore stop errors during cancellation.
+    } finally {
+      await this.avRecorder?.release();
+      this.cleanupRecorder();
+      this.removeCurrentFile();
+      this.state = 'idle';
+      this.startedAt = 0;
+      this.elapsedBeforePause = 0;
+      this.currentPath = '';
+    }
+  }
+
+  getCurrentPath(): string {
+    return this.currentPath;
+  }
+
+  getElapsedMs(): number {
+    return this.totalDurationMs();
   }
 
   private cleanupRecorder(): void {
@@ -100,6 +162,26 @@ export class AudioRecordService {
       this.fileHandle = undefined;
     }
     this.avRecorder = undefined;
+  }
+
+  private removeCurrentFile(): void {
+    if (!this.currentPath) {
+      return;
+    }
+    try {
+      if (fileIo.accessSync(this.currentPath)) {
+        fileIo.unlinkSync(this.currentPath);
+      }
+    } catch {
+      // Ignore file cleanup errors during cancellation.
+    }
+  }
+
+  private totalDurationMs(): number {
+    if (this.state === 'recording') {
+      return this.elapsedBeforePause + (Date.now() - this.startedAt);
+    }
+    return this.elapsedBeforePause;
   }
 
   private ensureContext(): common.UIAbilityContext {

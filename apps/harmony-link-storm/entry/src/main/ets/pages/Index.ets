@@ -66,6 +66,7 @@ struct Index {
   @State private batchFolderId: string = '';
   @State private batchTagsInput: string = '';
   @State private shareCaptureSummary: string = '';
+  @State private audioRecorderState: string = 'idle';
   private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -383,13 +384,13 @@ struct Index {
           Button('开始录音')
             .backgroundColor('#136F63')
             .fontColor(Color.White)
-            .enabled(!audioRecordService.isRecording())
+            .enabled(this.audioRecorderState === 'idle')
             .onClick(async () => {
               await this.startAudioCapture();
             })
           Button('停止录音')
             .buttonStyle(ButtonStyleMode.NORMAL)
-            .enabled(audioRecordService.isRecording())
+            .enabled(this.audioRecorderState === 'recording')
             .onClick(async () => {
               await this.stopAudioCapture();
             })
@@ -859,6 +860,7 @@ struct Index {
     this.audioStatus = draft.audioStatus;
     this.audioPath = draft.audioPath;
     this.audioDurationMs = draft.audioDurationMs;
+    this.audioRecorderState = 'idle';
     this.handwritingText = draft.handwritingText;
     this.handwritingStrokes = draft.handwritingStrokes ?? [];
     this.currentStrokePoints = draft.currentStrokePoints ?? [];
@@ -878,6 +880,7 @@ struct Index {
       audioStatus: this.audioStatus,
       audioPath: this.audioPath,
       audioDurationMs: this.audioDurationMs,
+      audioRecorderState: this.audioRecorderState,
       handwritingText: this.handwritingText,
       handwritingStrokes: this.handwritingStrokes,
       currentStrokePoints: this.currentStrokePoints,
@@ -1282,20 +1285,43 @@ struct Index {
     const permissionService = PermissionService.getInstance(context);
     const granted = await permissionService.requestMicrophone();
     if (!granted) {
-      this.audioStatus = '麦克风权限未授予';
+      this.audioStatus = '????????????';
       return;
     }
-    this.audioStatus = '正在录音...';
+    this.audioStatus = '??????...';
     await audioRecordService.start();
-    this.audioStatus = '录音中';
+    this.audioRecorderState = 'recording';
+    this.audioStatus = '?????';
+  }
+
+  private async pauseAudioCapture(): Promise<void> {
+    await audioRecordService.pause();
+    this.audioRecorderState = 'paused';
+    this.audioStatus = '?????????';
+  }
+
+  private async resumeAudioCapture(): Promise<void> {
+    await audioRecordService.resume();
+    this.audioRecorderState = 'recording';
+    this.audioStatus = '??????';
   }
 
   private async stopAudioCapture(): Promise<void> {
     const result = await audioRecordService.stop();
     this.audioPath = result.path;
     this.audioDurationMs = result.durationMs;
-    this.audioStatus = `已保存 ${Math.round(result.durationMs / 1000)} 秒`;
+    this.audioRecorderState = 'idle';
+    this.audioStatus = `?????${Math.round(result.durationMs / 1000)} ??`;
   }
+
+  private async cancelAudioCapture(): Promise<void> {
+    await audioRecordService.cancel();
+    this.audioRecorderState = 'idle';
+    this.audioPath = '';
+    this.audioDurationMs = 0;
+    this.audioStatus = '????????';
+  }
+
   private applyShareCapture(): void {
     const shareState = shareCaptureService.getShareState();
     if (shareState.capturedAt.length === 0) {
@@ -1314,9 +1340,9 @@ struct Index {
       this.sourceTitle = shareState.sourceApp;
     }
     if (shareState.attachments.length > 0 && this.note.length === 0) {
-      this.note = '?????' + shareState.attachments.join(', ');
+      this.note = `分享附件：${shareState.attachments.join(', ')}`;
     }
-    this.shareCaptureSummary = '??????' + shareState.contextType;
+    this.shareCaptureSummary = `分享已接收：${shareState.contextType}`;
   }
 
 }

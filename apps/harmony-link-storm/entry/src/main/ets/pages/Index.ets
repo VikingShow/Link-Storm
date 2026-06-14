@@ -259,17 +259,29 @@ struct Index {
       .width('100%')
 
       TextInput({ placeholder: '标题，可留空自动生成', text: this.title })
-        .onChange((value: string) => this.title = value)
+        .onChange((value: string) => {
+          this.title = value;
+          void this.persistCaptureDraft();
+        })
 
       TextInput({ placeholder: '标签，用逗号分隔', text: this.tags })
-        .onChange((value: string) => this.tags = value)
+        .onChange((value: string) => {
+          this.tags = value;
+          void this.persistCaptureDraft();
+        })
 
       Row({ space: 10 }) {
         TextInput({ placeholder: '来源标题', text: this.sourceTitle })
-          .onChange((value: string) => this.sourceTitle = value)
+          .onChange((value: string) => {
+            this.sourceTitle = value;
+            void this.persistCaptureDraft();
+          })
           .layoutWeight(1)
         TextInput({ placeholder: '来源链接', text: this.sourceUrl })
-          .onChange((value: string) => this.sourceUrl = value)
+          .onChange((value: string) => {
+            this.sourceUrl = value;
+            void this.persistCaptureDraft();
+          })
           .layoutWeight(1)
       }
 
@@ -277,7 +289,10 @@ struct Index {
 
       TextArea({ placeholder: '备注：补充上下文或后续行动', text: this.note })
         .height(76)
-        .onChange((value: string) => this.note = value)
+        .onChange((value: string) => {
+          this.note = value;
+          void this.persistCaptureDraft();
+        })
 
       Row({ space: 10 }) {
         Button('保存想法')
@@ -286,7 +301,10 @@ struct Index {
           .onClick(async () => this.saveDraft())
         Button('清空')
           .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(() => this.resetForm())
+          .onClick(async () => {
+            this.resetForm();
+            await ideaRepository.clearCaptureDraft();
+          })
       }
       .width('100%')
 
@@ -319,7 +337,10 @@ struct Index {
       .buttonStyle(ButtonStyleMode.NORMAL)
       .backgroundColor(this.activeType === type ? '#E0F2EE' : '#FFFFFF')
       .fontColor(this.activeType === type ? '#0B4F47' : '#697386')
-      .onClick(() => this.activeType = type)
+      .onClick(() => {
+        this.activeType = type;
+        void this.persistCaptureDraft();
+      })
   }
 
   @Builder

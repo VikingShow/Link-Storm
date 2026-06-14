@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { Idea, ideaTypeLabel } from '../model/IdeaModels';
+import { Idea, IdeaAsset, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 
 interface DetailParams {
@@ -17,6 +17,11 @@ struct Detail {
   @State private plainText: string = '';
   @State private sourceTitle: string = '';
   @State private sourceUrl: string = '';
+  @State private assetLocalUri: string = '';
+  @State private assetMimeType: string = '';
+  @State private assetDurationMs: number = 0;
+  @State private assetPreviewPath: string = '';
+  @State private assetType: string = '';
   @State private status: string = '';
 
   async aboutToAppear(): Promise<void> {
@@ -50,11 +55,7 @@ struct Detail {
             .height(220)
             .objectFit(ImageFit.Contain)
         }
-        if (this.idea.type === 'audio' && this.idea.asset?.localUri) {
-          Text(`音频文件：${this.idea.asset.localUri}`)
-            .fontSize(12)
-            .fontColor('#667085')
-        }
+        this.AssetSection()
         TextInput({ text: this.title, placeholder: '标题' })
           .onChange((value: string) => this.title = value)
         TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })
@@ -105,7 +106,8 @@ struct Detail {
                   url: this.sourceUrl,
                   manualNote: this.note,
                   capturedAt: this.idea ? this.idea.context.capturedAt : new Date().toISOString()
-                }
+                },
+                asset: this.buildAssetPatch()
               });
               this.status = '已保存';
               await this.reload();
@@ -150,10 +152,54 @@ struct Detail {
     this.plainText = loaded.plainText;
     this.sourceTitle = loaded.context.title;
     this.sourceUrl = loaded.context.url;
+    this.assetLocalUri = loaded.asset?.localUri ?? '';
+    this.assetMimeType = loaded.asset?.mimeType ?? '';
+    this.assetDurationMs = loaded.asset?.durationMs ?? 0;
+    this.assetPreviewPath = loaded.asset?.previewPath ?? '';
+    this.assetType = loaded.asset?.type ?? '';
     this.status = '';
   }
 
   private parseTags(): string[] {
     return this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
+  }
+
+  @Builder
+  private AssetSection() {
+    Column({ space: 8 }) {
+      Text('附件与上下文')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+      Text(`类型：${this.assetType || '无'}`)
+        .fontSize(12)
+        .fontColor('#667085')
+      TextInput({ text: this.assetLocalUri, placeholder: '附件本地路径' })
+        .onChange((value: string) => this.assetLocalUri = value)
+      TextInput({ text: this.assetMimeType, placeholder: 'MimeType' })
+        .onChange((value: string) => this.assetMimeType = value)
+      TextInput({ text: `${this.assetDurationMs}`, placeholder: '时长（毫秒）' })
+        .onChange((value: string) => this.assetDurationMs = Number(value || '0'))
+      TextInput({ text: this.assetPreviewPath, placeholder: '预览图路径' })
+        .onChange((value: string) => this.assetPreviewPath = value)
+    }
+    .padding(12)
+    .width('100%')
+    .backgroundColor('#FBFCFD')
+    .border({ width: 1, color: '#D8DDE6' })
+    .borderRadius(8)
+  }
+
+  private buildAssetPatch(): IdeaAsset | undefined {
+    if (!this.assetLocalUri && !this.assetMimeType && !this.assetPreviewPath && !this.assetType) {
+      return undefined;
+    }
+    const asset: IdeaAsset = {
+      type: this.assetType || 'manual',
+      localUri: this.assetLocalUri,
+      mimeType: this.assetMimeType || undefined,
+      durationMs: this.assetDurationMs > 0 ? this.assetDurationMs : undefined,
+      previewPath: this.assetPreviewPath || undefined
+    };
+    return asset;
   }
 }

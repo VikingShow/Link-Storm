@@ -50,6 +50,11 @@ struct Detail {
             .height(220)
             .objectFit(ImageFit.Contain)
         }
+        if (this.idea.type === 'audio' && this.idea.asset?.localUri) {
+          Text(`音频文件：${this.idea.asset.localUri}`)
+            .fontSize(12)
+            .fontColor('#667085')
+        }
         TextInput({ text: this.title, placeholder: '标题' })
           .onChange((value: string) => this.title = value)
         TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })

@@ -27,6 +27,8 @@ export interface HandwritingStroke {
 export interface IdeaAsset {
   type: string;
   localUri: string;
+  mimeType?: string;
+  durationMs?: number;
   strokes?: HandwritingStroke[];
   previewPath?: string;
 }

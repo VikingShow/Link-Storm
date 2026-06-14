@@ -3,6 +3,18 @@
     "name": "entry",
     "type": "entry",
     "description": "$string:module_desc",
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.MICROPHONE",
+        "reason": "$string:mic_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      }
+    ],
     "mainElement": "EntryAbility",
     "deviceTypes": [
       "phone",

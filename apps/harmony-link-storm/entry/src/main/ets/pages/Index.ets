@@ -4,6 +4,8 @@ import componentSnapshot from '@ohos.arkui.componentSnapshot';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import { HandwritingStroke, Idea, IdeaDraft, IdeaType, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { audioRecordService } from '../services/AudioRecordService';
+import { PermissionService } from '../services/PermissionService';
 import { ideaRepository } from '../repository/IdeaRepository';
 
 const PHONE_BREAKPOINT = 680;
@@ -25,6 +27,8 @@ struct Index {
   @State private note: string = '';
   @State private documentText: string = '';
   @State private audioStatus: string = '录音能力预留，后续接入 AVRecorder';
+  @State private audioPath: string = '';
+  @State private audioDurationMs: number = 0;
   @State private handwritingText: string = '手写能力预留，当前已接入 Canvas';
   @State private search: string = '';
   @State private typeFilter: string = 'all';
@@ -43,6 +47,7 @@ struct Index {
   async aboutToAppear(): Promise<void> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     await ideaRepository.init(context);
+    audioRecordService.setContext(context);
     await this.reloadIdeas();
     this.applyDefaultMode(CANVAS_WIDTH);
   }
@@ -195,8 +200,30 @@ struct Index {
       Column({ space: 8 }) {
         Text('语音捕捉')
           .fontWeight(FontWeight.Bold)
-        Text(this.audioStatus)
+          Text(this.audioStatus)
           .fontColor('#697386')
+        Row({ space: 8 }) {
+          Button('开始录音')
+            .backgroundColor('#136F63')
+            .fontColor(Color.White)
+            .enabled(!audioRecordService.isRecording())
+            .onClick(async () => {
+              await this.startAudioCapture();
+            })
+          Button('停止录音')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(audioRecordService.isRecording())
+            .onClick(async () => {
+              await this.stopAudioCapture();
+            })
+        }
+        if (this.audioPath.length > 0) {
+          Text(this.audioPath)
+            .fontSize(12)
+            .fontColor('#697386')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
       }
       .padding(12)
       .width('100%')
@@ -408,6 +435,11 @@ struct Index {
         localUri: '',
         strokes: this.handwritingStrokes,
         previewPath: await this.saveHandwritingPreview()
+      } : this.activeType === IdeaType.AUDIO ? {
+        type: 'audio',
+        localUri: this.audioPath,
+        mimeType: 'audio/mp4',
+        durationMs: this.audioDurationMs
       } : undefined
     };
 
@@ -424,6 +456,8 @@ struct Index {
     this.note = '';
     this.documentText = '';
     this.audioStatus = '录音能力预留，后续接入 AVRecorder';
+    this.audioPath = '';
+    this.audioDurationMs = 0;
     this.handwritingText = '手写能力预留，当前已接入 Canvas';
     this.clearHandwriting();
   }
@@ -450,7 +484,7 @@ struct Index {
 
   private previewText(idea: Idea): string {
     if (idea.type === IdeaType.AUDIO) {
-      return '语音记录入口已预留，后续保存音频文件。';
+      return idea.asset?.localUri ? `语音文件：${idea.asset.localUri}` : '语音记录入口已预留，后续保存音频文件。';
     }
     if (idea.type === IdeaType.HANDWRITING) {
       return idea.asset?.strokes?.length ? `手写笔画 ${idea.asset.strokes.length} 组` : '手写记录入口已预留，后续保存笔迹和预览图。';
@@ -544,5 +578,25 @@ struct Index {
       }
       ctx.stroke();
     }
+  }
+
+  private async startAudioCapture(): Promise<void> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const permissionService = PermissionService.getInstance(context);
+    const granted = await permissionService.requestMicrophone();
+    if (!granted) {
+      this.audioStatus = '麦克风权限未授予';
+      return;
+    }
+    this.audioStatus = '正在录音...';
+    await audioRecordService.start();
+    this.audioStatus = '录音中';
+  }
+
+  private async stopAudioCapture(): Promise<void> {
+    const result = await audioRecordService.stop();
+    this.audioPath = result.path;
+    this.audioDurationMs = result.durationMs;
+    this.audioStatus = `已保存 ${Math.round(result.durationMs / 1000)} 秒`;
   }
 }

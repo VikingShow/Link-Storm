@@ -34,6 +34,7 @@ struct Index {
   @State private typeFilter: string = 'all';
   @State private tagFilter: string = '';
   @State private folderFilter: string = 'all';
+  @State private selectedIds: string[] = [];
   @State private ideas: Idea[] = [];
   @State private importStatus: string = '';
   @State private exportStatus: string = '';
@@ -316,6 +317,36 @@ struct Index {
         }
       }
 
+      if (this.selectedIds.length > 0) {
+        Row({ space: 8 }) {
+          Text(`已选 ${this.selectedIds.length} 条`)
+            .fontSize(12)
+            .fontColor('#667085')
+          Button('全选可见')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(() => this.selectVisible())
+          Button('清除选择')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(() => this.clearSelection())
+          Button('批量收藏')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.batchUpdate({ isFavorite: true });
+            })
+          Button('批量归档')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.batchUpdate({ isArchived: true });
+            })
+          Button('批量删除')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .fontColor('#B42318')
+            .onClick(async () => {
+              await this.batchDelete();
+            })
+        }
+      }
+
       List({ space: 10 }) {
         ForEach(this.filteredIdeas(), (idea: Idea) => {
           ListItem() {
@@ -364,6 +395,11 @@ struct Index {
           .fontSize(12)
           .fontColor('#697386')
         Blank()
+        Button(this.isSelected(idea.id) ? '已选' : '选择')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.isSelected(idea.id) ? '#136F63' : '#FFFFFF')
+          .fontColor(this.isSelected(idea.id) ? '#FFFFFF' : '#697386')
+          .onClick(() => this.toggleSelected(idea.id))
       }
 
       Text(idea.title)
@@ -424,9 +460,9 @@ struct Index {
     .alignItems(HorizontalAlign.Start)
     .padding(14)
     .width('100%')
-    .backgroundColor('#FFFFFF')
+    .backgroundColor(this.isSelected(idea.id) ? '#F0FBF7' : '#FFFFFF')
     .borderRadius(8)
-    .border({ width: 1, color: '#D8DDE6' })
+    .border({ width: 1, color: this.isSelected(idea.id) ? '#136F63' : '#D8DDE6' })
   }
 
   private applyDefaultMode(width: number): void {
@@ -507,6 +543,47 @@ struct Index {
       ].join(' ').toLowerCase();
       return typeOk && tagOk && (!query || text.includes(query));
     });
+  }
+
+  private isSelected(id: string): boolean {
+    return this.selectedIds.includes(id);
+  }
+
+  private toggleSelected(id: string): void {
+    if (this.isSelected(id)) {
+      this.selectedIds = this.selectedIds.filter((item: string) => item !== id);
+      return;
+    }
+    this.selectedIds = this.selectedIds.concat([id]);
+  }
+
+  private selectVisible(): void {
+    const visibleIds = this.filteredIdeas().map((idea: Idea) => idea.id);
+    const next = new Set(this.selectedIds);
+    for (const id of visibleIds) {
+      next.add(id);
+    }
+    this.selectedIds = Array.from(next.values());
+  }
+
+  private clearSelection(): void {
+    this.selectedIds = [];
+  }
+
+  private async batchUpdate(patch: Partial<Idea>): Promise<void> {
+    for (const id of this.selectedIds) {
+      await ideaRepository.update(id, patch);
+    }
+    this.clearSelection();
+    await this.reloadIdeas();
+  }
+
+  private async batchDelete(): Promise<void> {
+    for (const id of this.selectedIds) {
+      await ideaRepository.delete(id);
+    }
+    this.clearSelection();
+    await this.reloadIdeas();
   }
 
   private commonTags(): string[] {

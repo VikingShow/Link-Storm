@@ -415,6 +415,23 @@ struct Index {
         Text(this.handwritingText)
           .fontColor('#697386')
 
+        Row({ space: 8 }) {
+          Button('??')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.handwritingStrokes.length > 0)
+            .onClick(() => this.undoHandwritingStroke())
+          Button('??')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.handwritingStrokes.length > 0 || this.currentStrokePoints.length > 0)
+            .onClick(() => this.clearHandwriting())
+          Button('????')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.handwritingStrokes.length > 0)
+            .onClick(async () => {
+              await this.persistHandwritingPreview();
+            })
+        }
+
         Stack() {
             Canvas(this.canvasContext)
               .id(this.handwritingCanvasId)
@@ -1193,6 +1210,22 @@ struct Index {
     this.handwritingStrokes = [];
     this.currentStrokePoints = [];
     this.redrawHandwriting();
+  }
+
+  private undoHandwritingStroke(): void {
+    if (this.currentStrokePoints.length > 0) {
+      this.currentStrokePoints = [];
+    } else if (this.handwritingStrokes.length > 0) {
+      this.handwritingStrokes = this.handwritingStrokes.slice(0, this.handwritingStrokes.length - 1);
+    }
+    this.redrawHandwriting();
+    void this.persistCaptureDraft();
+  }
+
+  private async persistHandwritingPreview(): Promise<void> {
+    const previewPath = await this.saveHandwritingPreview();
+    this.handwritingText = `??????${previewPath}`;
+    void this.persistCaptureDraft();
   }
 
   private async saveHandwritingPreview(): Promise<string> {

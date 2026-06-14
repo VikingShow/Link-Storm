@@ -99,23 +99,31 @@ struct Detail {
         .border({ width: 1, color: '#D8DDE6' })
         .borderRadius(8)
 
-        if (this.idea.asset?.previewPath && this.idea.asset.type === 'handwriting') {
-          Image(this.idea.asset.previewPath)
+        if (this.getAsset()?.previewPath && this.getAsset()?.type === 'handwriting') {
+          Image(this.getAsset()!.previewPath)
             .width('100%')
             .height(220)
             .objectFit(ImageFit.Contain)
         }
-        if (this.idea.asset?.type === 'handwriting') {
+        if (this.getAsset()?.type === 'handwriting') {
           Column({ space: 6 }) {
-            Text(`鎵嬪啓绗旂敾锛?{this.idea.asset.strokes?.length ?? 0}`)
+            Text(`鎵嬪啓绗旂敾锛?{this.getAsset()?.strokes?.length ?? 0}`)
               .fontSize(12)
               .fontColor('#667085')
-            if (this.idea.asset.previewPath) {
-              Text(this.idea.asset.previewPath)
-                .fontSize(12)
-                .fontColor('#667085')
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (this.getAsset()?.previewPath) {
+              Row({ space: 8 }) {
+                Text(this.getAsset()!.previewPath)
+                  .fontSize(12)
+                  .fontColor('#667085')
+                  .layoutWeight(1)
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                Button('打开预览')
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .onClick(async () => {
+                    await this.openPreviewAttachment();
+                  })
+              }
             }
           }
         }
@@ -303,6 +311,17 @@ struct Detail {
     this.status = '';
   }
 
+  private getAsset(): IdeaAsset | undefined {
+    return this.idea?.asset;
+  }
+
+  private async openPreviewAttachment(): Promise<void> {
+    const previewPath = this.getAsset()?.previewPath ?? '';
+    if (previewPath.length > 0) {
+      await this.openAttachment(previewPath);
+    }
+  }
+
   private parseTags(): string[] {
     return this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
   }
@@ -353,6 +372,12 @@ struct Detail {
             } catch (err) {
               this.attachmentStatus = `选择失败：${String(err)}`;
             }
+          })
+        Button('打开附件')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .enabled(this.assetLocalUri.length > 0)
+          .onClick(async () => {
+            await this.openAttachment(this.assetLocalUri);
           })
         Button('清除附件')
           .buttonStyle(ButtonStyleMode.NORMAL)

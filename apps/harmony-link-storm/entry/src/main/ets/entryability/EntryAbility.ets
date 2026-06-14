@@ -12,6 +12,11 @@ export default class EntryAbility extends UIAbility {
     shareCaptureService.applyWant(want);
   }
 
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    hilog.info(DOMAIN, 'EntryAbility', 'onNewWant');
+    shareCaptureService.applyWant(want);
+  }
+
   onDestroy(): void {
     hilog.info(DOMAIN, 'EntryAbility', 'onDestroy');
   }

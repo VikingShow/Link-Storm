@@ -263,6 +263,63 @@ export class IdeaRepository {
     };
   }
 
+  async pickAttachmentPath(): Promise<string | undefined> {
+    const context = this.ensureContext();
+    const pickerInstance = new picker.DocumentViewPicker(context);
+    const uris = await pickerInstance.select();
+    if (uris.length === 0) {
+      return undefined;
+    }
+    return this.resolveFilePath(uris[0]);
+  }
+
+  async replaceIdeaAsset(ideaId: string): Promise<IdeaAsset | undefined> {
+    const pickedPath = await this.pickAttachmentPath();
+    if (!pickedPath) {
+      return undefined;
+    }
+    const current = await this.getById(ideaId);
+    if (!current) {
+      throw new Error('Idea not found');
+    }
+    const copiedPath = await this.copyAttachmentToIdeaStorage(pickedPath, ideaId, current.asset?.type || current.type);
+    const nextAsset: IdeaAsset = {
+      type: this.inferAssetType(pickedPath, current.asset?.type || current.type),
+      localUri: copiedPath,
+      mimeType: this.inferMimeType(pickedPath, current.asset?.mimeType),
+      previewPath: this.isImageLikeAsset(pickedPath) ? copiedPath : (current.asset?.previewPath || undefined),
+      durationMs: current.asset?.durationMs,
+      strokes: current.asset?.strokes
+    };
+    await this.update(ideaId, { asset: nextAsset });
+    return nextAsset;
+  }
+
+  async clearIdeaAsset(ideaId: string): Promise<void> {
+    const current = await this.getById(ideaId);
+    if (!current) {
+      throw new Error('Idea not found');
+    }
+    const storedPath = current.asset?.localUri;
+    if (storedPath && this.isManagedAttachmentPath(storedPath)) {
+      this.removeFileIfExists(storedPath);
+    }
+    if (current.asset?.previewPath && current.asset.previewPath !== storedPath && this.isManagedAttachmentPath(current.asset.previewPath)) {
+      this.removeFileIfExists(current.asset.previewPath);
+    }
+    await this.update(ideaId, { asset: undefined });
+  }
+
+  async copyAttachmentToIdeaStorage(sourcePath: string, ideaId: string, kind: string): Promise<string> {
+    const context = this.ensureContext();
+    const attachmentsDir = `${context.filesDir}/idea-attachments`;
+    fileIo.mkdirSync(attachmentsDir);
+    const safeKind = this.safeName(kind || 'asset');
+    const targetPath = `${attachmentsDir}/${ideaId}-${safeKind}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
+    fileIo.copyFileSync(sourcePath, targetPath);
+    return targetPath;
+  }
+
   private readTextByUri(uri: string): string {
     const path = this.resolveFilePath(uri);
     return fileIo.readTextSync(path);
@@ -333,6 +390,59 @@ export class IdeaRepository {
 
   private safeName(value: string): string {
     return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  private inferAssetType(path: string, fallback: string): string {
+    const lower = path.toLowerCase();
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif')) {
+      return 'image';
+    }
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac') || lower.endsWith('.mp3') || lower.endsWith('.wav')) {
+      return 'audio';
+    }
+    if (fallback) {
+      return fallback;
+    }
+    return 'manual';
+  }
+
+  private inferMimeType(path: string, fallback?: string): string | undefined {
+    const lower = path.toLowerCase();
+    if (lower.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (lower.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    if (lower.endsWith('.gif')) {
+      return 'image/gif';
+    }
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac') || lower.endsWith('.mp3') || lower.endsWith('.wav')) {
+      return 'audio/mp4';
+    }
+    return fallback;
+  }
+
+  private isImageLikeAsset(path: string): boolean {
+    const lower = path.toLowerCase();
+    return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif');
+  }
+
+  private isManagedAttachmentPath(path: string): boolean {
+    const context = this.ensureContext();
+    const normalized = this.resolveFilePath(path);
+    return normalized.startsWith(context.filesDir);
+  }
+
+  private removeFileIfExists(path: string): void {
+    const resolved = this.resolveFilePath(path);
+    if (!fileIo.accessSync(resolved)) {
+      return;
+    }
+    fileIo.unlinkSync(resolved);
   }
 
   private async persist(ideas: Idea[]): Promise<void> {

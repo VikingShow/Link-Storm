@@ -1,4 +1,4 @@
-import router from '@ohos.router';
+﻿import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { Idea, IdeaAsset, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
@@ -27,6 +27,7 @@ struct Detail {
   @State private assetType: string = '';
   @State private playbackState: string = 'idle';
   @State private status: string = '';
+  @State private attachmentStatus: string = '';
 
   async aboutToAppear(): Promise<void> {
     const params = router.getParams() as DetailParams;
@@ -40,15 +41,15 @@ struct Detail {
     Column({ space: 16 }) {
       Row() {
         Column({ space: 4 }) {
-          Text('想法详情')
+          Text('鎯虫硶璇︽儏')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-          Text(this.idea ? ideaTypeLabel(this.idea.type) : '加载中')
+          Text(this.idea ? ideaTypeLabel(this.idea.type) : 'Loading')
             .fontSize(12)
             .fontColor('#667085')
         }
         Blank()
-        Button('返回')
+        Button('杩斿洖')
           .buttonStyle(ButtonStyleMode.NORMAL)
           .onClick(() => router.back())
       }
@@ -63,7 +64,7 @@ struct Detail {
         }
         if (this.idea.asset?.type === 'handwriting') {
           Column({ space: 6 }) {
-            Text(`手写笔画：${this.idea.asset.strokes?.length ?? 0}`)
+            Text(`鎵嬪啓绗旂敾锛?{this.idea.asset.strokes?.length ?? 0}`)
               .fontSize(12)
               .fontColor('#667085')
             if (this.idea.asset.previewPath) {
@@ -77,61 +78,61 @@ struct Detail {
         }
         if (this.isPlayableAudio()) {
           Row({ space: 8 }) {
-            Button('播放')
+            Button('鎾斁')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
                 try {
                   await audioPlaybackService.play(this.assetLocalUri);
                   this.playbackState = audioPlaybackService.getState();
                 } catch (err) {
-                  this.status = `播放失败：${String(err)}`;
+                  this.status = `鎾斁澶辫触锛?{String(err)}`;
                 }
               })
-            Button('暂停')
+            Button('鏆傚仠')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
                 try {
                   await audioPlaybackService.pause();
                   this.playbackState = audioPlaybackService.getState();
                 } catch (err) {
-                  this.status = `暂停失败：${String(err)}`;
+                  this.status = `鏆傚仠澶辫触锛?{String(err)}`;
                 }
               })
-            Button('停止')
+            Button('鍋滄')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
                 try {
                   await audioPlaybackService.stop();
                   this.playbackState = audioPlaybackService.getState();
                 } catch (err) {
-                  this.status = `停止失败：${String(err)}`;
+                  this.status = `鍋滄澶辫触锛?{String(err)}`;
                 }
               })
           }
-          Text(`播放状态：${this.playbackState}`)
+          Text(`鎾斁鐘舵€侊細${this.playbackState}`)
             .fontColor('#667085')
             .fontSize(12)
         }
         this.AssetSection()
-        TextInput({ text: this.title, placeholder: '标题' })
+        TextInput({ text: this.title, placeholder: '鏍囬' })
           .onChange((value: string) => this.title = value)
-        TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })
+        TextInput({ text: this.tags, placeholder: '鏍囩锛岄€楀彿鍒嗛殧' })
           .onChange((value: string) => this.tags = value)
-        TextInput({ text: this.sourceTitle, placeholder: '来源标题' })
+        TextInput({ text: this.sourceTitle, placeholder: '鏉ユ簮鏍囬' })
           .onChange((value: string) => this.sourceTitle = value)
-        TextInput({ text: this.sourceUrl, placeholder: '来源链接' })
+        TextInput({ text: this.sourceUrl, placeholder: '鏉ユ簮閾炬帴' })
           .onChange((value: string) => this.sourceUrl = value)
-        TextInput({ text: this.folderId, placeholder: '文件夹编号' })
+        TextInput({ text: this.folderId, placeholder: 'folder id' })
           .onChange((value: string) => this.folderId = value)
-        TextArea({ text: this.plainText, placeholder: '正文' })
+        TextArea({ text: this.plainText, placeholder: 'plain text' })
           .height(160)
           .onChange((value: string) => this.plainText = value)
-        TextArea({ text: this.note, placeholder: '备注' })
+        TextArea({ text: this.note, placeholder: 'note' })
           .height(120)
           .onChange((value: string) => this.note = value)
 
         Row({ space: 10 }) {
-          Button(this.idea.isFavorite ? '取消收藏' : '收藏')
+          Button(this.idea.isFavorite ? '鍙栨秷鏀惰棌' : '鏀惰棌')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .onClick(async () => {
               const current = this.idea;
@@ -141,7 +142,7 @@ struct Detail {
               await ideaRepository.update(this.ideaId, { isFavorite: !current.isFavorite });
               await this.reload();
             })
-          Button(this.idea.isArchived ? '取消归档' : '归档')
+          Button(this.idea.isArchived ? '鍙栨秷褰掓。' : '褰掓。')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .onClick(async () => {
               const current = this.idea;
@@ -151,7 +152,7 @@ struct Detail {
               await ideaRepository.update(this.ideaId, { isArchived: !current.isArchived });
               await this.reload();
             })
-          Button('保存')
+          Button('淇濆瓨')
             .backgroundColor('#136F63')
             .fontColor(Color.White)
             .onClick(async () => {
@@ -169,10 +170,10 @@ struct Detail {
                 },
                 asset: this.buildAssetPatch()
               });
-              this.status = '已保存';
+              this.status = 'saved';
               await this.reload();
             })
-          Button('删除')
+          Button('鍒犻櫎')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .fontColor('#B42318')
             .onClick(async () => {
@@ -185,7 +186,7 @@ struct Detail {
           .fontColor('#667085')
           .fontSize(12)
       } else {
-        Text(this.status || '未找到记录')
+        Text(this.status || 'record not found')
       }
     }
     .padding(20)
@@ -196,12 +197,12 @@ struct Detail {
 
   private async reload(): Promise<void> {
     if (!this.ideaId) {
-      this.status = '缺少想法 ID';
+      this.status = '缂哄皯鎯虫硶 ID';
       return;
     }
     const loaded = await ideaRepository.getById(this.ideaId);
     if (!loaded) {
-      this.status = '记录不存在';
+      this.status = 'record not found';
       this.idea = undefined;
       return;
     }
@@ -219,6 +220,7 @@ struct Detail {
     this.assetPreviewPath = loaded.asset?.previewPath ?? '';
     this.assetType = loaded.asset?.type ?? '';
     this.playbackState = audioPlaybackService.getState();
+    this.attachmentStatus = '';
     this.status = '';
   }
 
@@ -243,6 +245,39 @@ struct Detail {
         .onChange((value: string) => this.assetDurationMs = Number(value || '0'))
       TextInput({ text: this.assetPreviewPath, placeholder: '预览图路径' })
         .onChange((value: string) => this.assetPreviewPath = value)
+      Row({ space: 8 }) {
+        Button('选择附件')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              const asset = await ideaRepository.replaceIdeaAsset(this.ideaId);
+              if (asset) {
+                this.attachmentStatus = `已选择：${asset.localUri}`;
+                await this.reload();
+              } else {
+                this.attachmentStatus = '已取消选择';
+              }
+            } catch (err) {
+              this.attachmentStatus = `选择失败：${String(err)}`;
+            }
+          })
+        Button('清除附件')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              await ideaRepository.clearIdeaAsset(this.ideaId);
+              this.attachmentStatus = '已清除附件';
+              await this.reload();
+            } catch (err) {
+              this.attachmentStatus = `清除失败：${String(err)}`;
+            }
+          })
+      }
+      if (this.attachmentStatus.length > 0) {
+        Text(this.attachmentStatus)
+          .fontSize(12)
+          .fontColor('#667085')
+      }
     }
     .padding(12)
     .width('100%')
@@ -269,3 +304,4 @@ struct Detail {
     return this.assetType === 'audio' && this.assetLocalUri.length > 0;
   }
 }
+

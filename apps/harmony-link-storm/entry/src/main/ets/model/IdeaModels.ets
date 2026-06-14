@@ -68,6 +68,24 @@ export interface IdeaDraft {
   asset?: IdeaAsset;
 }
 
+export interface CaptureDraftState {
+  activeType: IdeaType;
+  title: string;
+  tags: string;
+  sourceTitle: string;
+  sourceUrl: string;
+  note: string;
+  documentText: string;
+  audioStatus: string;
+  audioPath: string;
+  audioDurationMs: number;
+  handwritingText: string;
+  handwritingStrokes: HandwritingStroke[];
+  currentStrokePoints: StrokePoint[];
+  handwritingPreviewPath?: string;
+  savedAt: string;
+}
+
 export interface IdeaExportPayload {
   schema: string;
   version: number;

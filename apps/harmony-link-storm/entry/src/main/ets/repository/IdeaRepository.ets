@@ -4,10 +4,11 @@ import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
-import { Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_KEY = 'ideas_json';
+const CAPTURE_DRAFT_KEY = 'capture_draft_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
 const BACKUP_SCHEMA = 'link-storm-backup';
@@ -87,6 +88,28 @@ export class IdeaRepository {
       } as Idea;
     });
     await this.persist(next);
+  }
+
+  async saveCaptureDraft(draft: CaptureDraftState): Promise<void> {
+    await this.ensureStore().put(CAPTURE_DRAFT_KEY, JSON.stringify(draft));
+    await this.ensureStore().flush();
+  }
+
+  async loadCaptureDraft(): Promise<CaptureDraftState | undefined> {
+    const raw = await this.ensureStore().get(CAPTURE_DRAFT_KEY, '') as string;
+    if (!raw) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(raw) as CaptureDraftState;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async clearCaptureDraft(): Promise<void> {
+    await this.ensureStore().delete(CAPTURE_DRAFT_KEY);
+    await this.ensureStore().flush();
   }
 
   async delete(id: string): Promise<void> {

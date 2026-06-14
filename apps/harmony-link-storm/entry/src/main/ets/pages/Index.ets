@@ -5,7 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import { systemShare } from '@kit.ShareKit';
-import { HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
@@ -69,8 +69,13 @@ struct Index {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     await ideaRepository.init(context);
     audioRecordService.setContext(context);
+    await this.restoreCaptureDraft();
     await this.reloadIdeas();
     this.applyDefaultMode(CANVAS_WIDTH);
+  }
+
+  aboutToDisappear(): void {
+    void this.persistCaptureDraft();
   }
 
   build() {
@@ -360,7 +365,7 @@ struct Index {
         Text(this.handwritingText)
           .fontColor('#697386')
 
-          Stack() {
+        Stack() {
             Canvas(this.canvasContext)
               .id(this.handwritingCanvasId)
               .width('100%')
@@ -634,6 +639,7 @@ struct Index {
 
     await ideaRepository.save(draft);
     this.resetForm();
+    await ideaRepository.clearCaptureDraft();
     await this.reloadIdeas();
   }
 
@@ -649,6 +655,47 @@ struct Index {
     this.audioDurationMs = 0;
     this.handwritingText = '手写能力预留，当前已接入 Canvas';
     this.clearHandwriting();
+  }
+
+  private async restoreCaptureDraft(): Promise<void> {
+    const draft = await ideaRepository.loadCaptureDraft();
+    if (!draft) {
+      return;
+    }
+    this.activeType = draft.activeType;
+    this.title = draft.title;
+    this.tags = draft.tags;
+    this.sourceTitle = draft.sourceTitle;
+    this.sourceUrl = draft.sourceUrl;
+    this.note = draft.note;
+    this.documentText = draft.documentText;
+    this.audioStatus = draft.audioStatus;
+    this.audioPath = draft.audioPath;
+    this.audioDurationMs = draft.audioDurationMs;
+    this.handwritingText = draft.handwritingText;
+    this.handwritingStrokes = draft.handwritingStrokes ?? [];
+    this.currentStrokePoints = draft.currentStrokePoints ?? [];
+    this.redrawHandwriting();
+  }
+
+  private async persistCaptureDraft(): Promise<void> {
+    const draft: CaptureDraftState = {
+      activeType: this.activeType,
+      title: this.title,
+      tags: this.tags,
+      sourceTitle: this.sourceTitle,
+      sourceUrl: this.sourceUrl,
+      note: this.note,
+      documentText: this.documentText,
+      audioStatus: this.audioStatus,
+      audioPath: this.audioPath,
+      audioDurationMs: this.audioDurationMs,
+      handwritingText: this.handwritingText,
+      handwritingStrokes: this.handwritingStrokes,
+      currentStrokePoints: this.currentStrokePoints,
+      savedAt: new Date().toISOString()
+    };
+    await ideaRepository.saveCaptureDraft(draft);
   }
 
   private async reloadIdeas(): Promise<void> {
@@ -867,6 +914,7 @@ struct Index {
       this.currentStrokePoints = [canvasPoint];
       this.handwritingStrokes = this.handwritingStrokes.concat([{ color: STROKE_COLOR, width: STROKE_WIDTH, points: this.currentStrokePoints }]);
       this.redrawHandwriting();
+      void this.persistCaptureDraft();
       return;
     }
 
@@ -878,6 +926,7 @@ struct Index {
         this.currentStrokePoints.push(canvasPoint);
       }
       this.redrawHandwriting();
+      void this.persistCaptureDraft();
       return;
     }
 
@@ -887,6 +936,7 @@ struct Index {
       }
       this.currentStrokePoints = [];
       this.redrawHandwriting();
+      void this.persistCaptureDraft();
     }
   }
 

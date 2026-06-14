@@ -1,6 +1,8 @@
 import router from '@ohos.router';
+import { common } from '@kit.AbilityKit';
 import { Idea, IdeaAsset, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
+import { audioPlaybackService } from '../services/AudioPlaybackService';
 
 interface DetailParams {
   id?: string;
@@ -23,11 +25,14 @@ struct Detail {
   @State private assetDurationMs: number = 0;
   @State private assetPreviewPath: string = '';
   @State private assetType: string = '';
+  @State private playbackState: string = 'idle';
   @State private status: string = '';
 
   async aboutToAppear(): Promise<void> {
     const params = router.getParams() as DetailParams;
     this.ideaId = params.id ?? '';
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    audioPlaybackService.setContext(context);
     await this.reload();
   }
 
@@ -55,6 +60,43 @@ struct Detail {
             .width('100%')
             .height(220)
             .objectFit(ImageFit.Contain)
+        }
+        if (this.isPlayableAudio()) {
+          Row({ space: 8 }) {
+            Button('播放')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                try {
+                  await audioPlaybackService.play(this.assetLocalUri);
+                  this.playbackState = audioPlaybackService.getState();
+                } catch (err) {
+                  this.status = `播放失败：${String(err)}`;
+                }
+              })
+            Button('暂停')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                try {
+                  await audioPlaybackService.pause();
+                  this.playbackState = audioPlaybackService.getState();
+                } catch (err) {
+                  this.status = `暂停失败：${String(err)}`;
+                }
+              })
+            Button('停止')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                try {
+                  await audioPlaybackService.stop();
+                  this.playbackState = audioPlaybackService.getState();
+                } catch (err) {
+                  this.status = `停止失败：${String(err)}`;
+                }
+              })
+          }
+          Text(`播放状态：${this.playbackState}`)
+            .fontColor('#667085')
+            .fontSize(12)
         }
         this.AssetSection()
         TextInput({ text: this.title, placeholder: '标题' })
@@ -162,6 +204,7 @@ struct Detail {
     this.assetDurationMs = loaded.asset?.durationMs ?? 0;
     this.assetPreviewPath = loaded.asset?.previewPath ?? '';
     this.assetType = loaded.asset?.type ?? '';
+    this.playbackState = audioPlaybackService.getState();
     this.status = '';
   }
 
@@ -206,5 +249,9 @@ struct Detail {
       previewPath: this.assetPreviewPath || undefined
     };
     return asset;
+  }
+
+  private isPlayableAudio(): boolean {
+    return this.assetType === 'audio' && this.assetLocalUri.length > 0;
   }
 }

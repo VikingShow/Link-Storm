@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import componentSnapshot from '@ohos.arkui.componentSnapshot';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
-import { HandwritingStroke, Idea, IdeaDraft, IdeaType, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { HandwritingStroke, Idea, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { ideaRepository } from '../repository/IdeaRepository';
@@ -37,6 +37,7 @@ struct Index {
   @State private selectedIds: string[] = [];
   @State private ideas: Idea[] = [];
   @State private importStatus: string = '';
+  @State private importStrategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER;
   @State private exportStatus: string = '';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
@@ -106,7 +107,7 @@ struct Index {
         .buttonStyle(ButtonStyleMode.NORMAL)
         .onClick(async () => {
           try {
-            const result = await ideaRepository.importFromFile();
+            const result = await ideaRepository.importFromFile(this.importStrategy);
             const conflictHint = result.conflicts.length > 0 ? `，冲突${result.conflicts.length}` : '';
             this.importStatus = `导入完成：新增${result.inserted}，更新${result.updated}，跳过${result.skipped}${conflictHint}`;
             if (result.conflicts.length > 0) {
@@ -117,6 +118,18 @@ struct Index {
             this.importStatus = `导入失败：${String(err)}`;
           }
         })
+      Row({ space: 8 }) {
+        Button('保守导入')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.importStrategy === ImportConflictStrategy.KEEP_NEWER ? '#136F63' : '#FFFFFF')
+          .fontColor(this.importStrategy === ImportConflictStrategy.KEEP_NEWER ? '#FFFFFF' : '#697386')
+          .onClick(() => this.importStrategy = ImportConflictStrategy.KEEP_NEWER)
+        Button('强制覆盖')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.importStrategy === ImportConflictStrategy.FORCE_OVERWRITE ? '#136F63' : '#FFFFFF')
+          .fontColor(this.importStrategy === ImportConflictStrategy.FORCE_OVERWRITE ? '#FFFFFF' : '#697386')
+          .onClick(() => this.importStrategy = ImportConflictStrategy.FORCE_OVERWRITE)
+      }
     }
     .width('100%')
   }

@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
-import { Idea, IdeaDraft, IdeaExportPayload, IdeaType, ImportResult } from '../model/IdeaModels';
+import { Idea, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_KEY = 'ideas_json';
@@ -137,7 +137,7 @@ export class IdeaRepository {
     return target;
   }
 
-  async importFromFile(): Promise<ImportResult> {
+  async importFromFile(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
     const context = this.ensureContext();
     const pickerInstance = new picker.DocumentViewPicker(context);
     const uris = await pickerInstance.select();
@@ -145,10 +145,10 @@ export class IdeaRepository {
       throw new Error('Import cancelled');
     }
     const payload = this.readTextByUri(uris[0]);
-    return this.importJson(payload);
+    return this.importJson(payload, strategy);
   }
 
-  async importJson(payload: string): Promise<ImportResult> {
+  async importJson(payload: string, strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
     let parsed: Partial<IdeaExportPayload>;
     try {
       parsed = JSON.parse(payload) as Partial<IdeaExportPayload>;
@@ -163,7 +163,7 @@ export class IdeaRepository {
     }
 
     const existing = await this.list();
-    const merged = this.mergeIdeas(existing, parsed.ideas as Idea[]);
+    const merged = this.mergeIdeas(existing, parsed.ideas as Idea[], strategy);
     await this.persist(merged.items);
     return {
       inserted: merged.inserted,
@@ -221,7 +221,7 @@ export class IdeaRepository {
     return `文档想法 ${new Date().toLocaleString()}`;
   }
 
-  private mergeIdeas(existing: Idea[], incoming: Idea[]): MergeResult {
+  private mergeIdeas(existing: Idea[], incoming: Idea[], strategy: ImportConflictStrategy): MergeResult {
     const map = new Map<string, Idea>();
     let inserted = 0;
     let updated = 0;
@@ -243,7 +243,9 @@ export class IdeaRepository {
         inserted++;
         continue;
       }
-      if (Date.parse(idea.updatedAt) > Date.parse(current.updatedAt)) {
+      const incomingNewer = Date.parse(idea.updatedAt) > Date.parse(current.updatedAt);
+      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
+      if (shouldOverwrite) {
         map.set(idea.id, idea);
         updated++;
       } else {

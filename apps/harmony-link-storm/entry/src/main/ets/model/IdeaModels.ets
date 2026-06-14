@@ -82,6 +82,11 @@ export interface ImportResult {
   conflicts: string[];
 }
 
+export enum ImportConflictStrategy {
+  KEEP_NEWER = 'keep_newer',
+  FORCE_OVERWRITE = 'force_overwrite'
+}
+
 export function ideaTypeLabel(type: IdeaType): string {
   if (type === IdeaType.AUDIO) {
     return '语音';

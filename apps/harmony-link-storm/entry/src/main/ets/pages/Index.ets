@@ -5,7 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import { systemShare } from '@kit.ShareKit';
-import { HandwritingStroke, Idea, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { ideaRepository } from '../repository/IdeaRepository';
@@ -16,6 +16,17 @@ const STROKE_COLOR = '#111827';
 const STROKE_WIDTH = 3;
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 240;
+const PAGE_ROOT_ID = 'link-storm-page-root';
+
+interface ScreenshotFallbackResult {
+  path: string;
+  ideaId: string;
+}
+
+interface ShareOptions {
+  previewMode: systemShare.SharePreviewMode;
+  selectionMode: systemShare.SelectionMode;
+}
 
 @Entry
 @Component
@@ -41,6 +52,7 @@ struct Index {
   @State private importStatus: string = '';
   @State private importStrategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER;
   @State private exportStatus: string = '';
+  @State private screenshotStatus: string = '';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
   private handwritingCanvasId: string = 'handwriting-canvas';
@@ -73,6 +85,7 @@ struct Index {
     .width('100%')
     .height('100%')
     .backgroundColor('#F5F6F8')
+    .id(PAGE_ROOT_ID)
     .onAreaChange((_oldArea, newArea) => {
       this.applyDefaultMode(Number(newArea.width));
     })
@@ -113,6 +126,18 @@ struct Index {
             this.exportStatus = '已打开系统分享面板';
           } catch (err) {
             this.exportStatus = `分享失败：${String(err)}`;
+          }
+        })
+      Button('截图兜底')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          try {
+            const result = await this.captureScreenshotFallback();
+            this.screenshotStatus = `已保存截图：${result.path}`;
+            this.exportStatus = `截图已入库：${result.ideaId}`;
+            await this.reloadIdeas();
+          } catch (err) {
+            this.screenshotStatus = `截图失败：${String(err)}`;
           }
         })
       Button('导入文件')
@@ -207,6 +232,11 @@ struct Index {
       }
       if (this.importStatus.length > 0) {
         Text(this.importStatus)
+          .fontColor('#697386')
+          .fontSize(12)
+      }
+      if (this.screenshotStatus.length > 0) {
+        Text(this.screenshotStatus)
           .fontColor('#697386')
           .fontSize(12)
       }
@@ -642,10 +672,57 @@ struct Index {
       description: `分享${items.length}条本地想法`
     });
     const controller = new systemShare.ShareController(shareData);
-    await controller.show(context, {
+    const options: ShareOptions = {
       previewMode: systemShare.SharePreviewMode.DEFAULT,
       selectionMode: systemShare.SelectionMode.SINGLE
+    };
+    await controller.show(context, options);
+  }
+
+  private async captureScreenshotFallback(): Promise<ScreenshotFallbackResult> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const pixelMap = await componentSnapshot.get(PAGE_ROOT_ID);
+    const screenshotPath = `${context.filesDir}/screenshot-${Date.now()}.png`;
+    const packer = image.createImagePacker();
+    const data = await packer.packing(pixelMap, {
+      format: 'image/png',
+      quality: 100
     });
+    const file = fileIo.openSync(screenshotPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+    try {
+      fileIo.writeSync(file.fd, data);
+    } finally {
+      fileIo.closeSync(file);
+      await pixelMap.release();
+    }
+
+    const asset: IdeaAsset = {
+      type: 'screenshot',
+      localUri: screenshotPath,
+      mimeType: 'image/png',
+      previewPath: screenshotPath
+    };
+    const idea = await ideaRepository.save({
+      title: this.title || `截图兜底 ${new Date().toLocaleString()}`,
+      type: IdeaType.DOCUMENT,
+      plainText: this.documentText || '',
+      note: this.note || '页面截图兜底',
+      tags: this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0),
+      folderId: this.folderFilter === 'all' ? undefined : this.folderFilter,
+      context: {
+        title: this.sourceTitle || '当前页面截图',
+        url: this.sourceUrl,
+        manualNote: this.note || '页面截图兜底',
+        capturedAt: new Date().toISOString()
+      },
+      asset: asset
+    });
+
+    const result: ScreenshotFallbackResult = {
+      path: screenshotPath,
+      ideaId: idea.id
+    };
+    return result;
   }
 
   private buildShareText(items: Idea[]): string {

@@ -75,18 +75,21 @@ export class AudioRecordService {
     if (this.state !== 'recording') {
       throw new Error('Recorder is not active');
     }
+    const resultPath = this.currentPath;
+    const startedAt = this.startedAt;
     try {
       await this.avRecorder?.stop();
       await this.avRecorder?.reset();
     } finally {
       await this.avRecorder?.release();
       this.cleanupRecorder();
-      this.state = 'stopped';
+      this.state = 'idle';
+      this.startedAt = 0;
     }
     const result: AudioRecordResult = {
-      path: this.currentPath,
+      path: resultPath,
       mimeType: 'audio/mp4',
-      durationMs: Math.max(1, Date.now() - this.startedAt)
+      durationMs: Math.max(1, Date.now() - startedAt)
     };
     return result;
   }

@@ -15,6 +15,8 @@ export interface IdeaFolder {
   id: string;
   name: string;
   color: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StrokePoint {
@@ -74,6 +76,7 @@ export interface CaptureDraftState {
   tags: string;
   sourceTitle: string;
   sourceUrl: string;
+  folderId?: string;
   note: string;
   documentText: string;
   audioStatus: string;
@@ -91,6 +94,7 @@ export interface IdeaExportPayload {
   version: number;
   exportedAt: string;
   ideas: Idea[];
+  folders: IdeaFolder[];
 }
 
 export interface IdeaBackupPayload {
@@ -98,6 +102,7 @@ export interface IdeaBackupPayload {
   version: number;
   exportedAt: string;
   ideas: Idea[];
+  folders: IdeaFolder[];
   attachments: IdeaBackupAttachment[];
 }
 

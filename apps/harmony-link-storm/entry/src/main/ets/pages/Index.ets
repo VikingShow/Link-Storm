@@ -5,7 +5,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import { systemShare } from '@kit.ShareKit';
-import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaFolder, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
@@ -39,6 +39,7 @@ struct Index {
   @State private tags: string = '';
   @State private sourceTitle: string = '';
   @State private sourceUrl: string = '';
+  @State private folderId: string = '';
   @State private note: string = '';
   @State private documentText: string = '';
   @State private audioStatus: string = '录音能力预留，后续接入 AVRecorder';
@@ -58,6 +59,7 @@ struct Index {
   @State private floatingBallStatus: string = 'floating ball disabled';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
+  @State private folders: IdeaFolder[] = [];
   private handwritingCanvasId: string = 'handwriting-canvas';
 
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -71,6 +73,7 @@ struct Index {
     audioRecordService.setContext(context);
     await this.restoreCaptureDraft();
     await this.reloadIdeas();
+    await this.reloadFolders();
     this.applyDefaultMode(CANVAS_WIDTH);
   }
 
@@ -271,6 +274,21 @@ struct Index {
         })
 
       Row({ space: 10 }) {
+        TextInput({ placeholder: '文件夹 ID', text: this.folderId })
+          .onChange((value: string) => {
+            this.folderId = value;
+            void this.persistCaptureDraft();
+          })
+          .layoutWeight(1)
+        Button('清空文件夹')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(() => {
+            this.folderId = '';
+            void this.persistCaptureDraft();
+          })
+      }
+
+      Row({ space: 10 }) {
         TextInput({ placeholder: '来源标题', text: this.sourceTitle })
           .onChange((value: string) => {
             this.sourceTitle = value;
@@ -323,6 +341,8 @@ struct Index {
           .fontColor('#697386')
           .fontSize(12)
       }
+
+      this.FolderManagerPanel()
     }
     .padding(16)
     .backgroundColor(Color.White)
@@ -458,6 +478,20 @@ struct Index {
         this.FilterButton(IdeaType.DOCUMENT, '文档')
       }
 
+      if (this.folders.length > 0) {
+        Column({ space: 8 }) {
+          Text('文件夹')
+            .fontSize(12)
+            .fontColor('#667085')
+          Row({ space: 6 }) {
+            this.FolderFilterButton('all', '全部文件夹')
+            ForEach(this.folders, (folder: IdeaFolder) => {
+              this.FolderFilterButton(folder.id, folder.name)
+            }, (folder: IdeaFolder) => folder.id)
+          }
+        }
+      }
+
       if (this.commonTags().length > 0) {
         Column({ space: 8 }) {
           Text('常用标签')
@@ -534,6 +568,15 @@ struct Index {
       .backgroundColor(this.tagFilter === value ? '#136F63' : '#FFFFFF')
       .fontColor(this.tagFilter === value ? '#FFFFFF' : '#697386')
       .onClick(() => this.tagFilter = value)
+  }
+
+  @Builder
+  private FolderFilterButton(value: string, label: string) {
+    Button(label)
+      .buttonStyle(ButtonStyleMode.NORMAL)
+      .backgroundColor(this.folderFilter === value ? '#E0F2EE' : '#FFFFFF')
+      .fontColor(this.folderFilter === value ? '#0B4F47' : '#697386')
+      .onClick(() => this.folderFilter = value)
   }
 
   @Builder
@@ -654,7 +697,7 @@ struct Index {
       plainText: this.activeType === IdeaType.DOCUMENT ? this.documentText : '',
       note: this.note,
       tags: this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0),
-      folderId: this.folderFilter === 'all' ? undefined : this.folderFilter,
+      folderId: this.folderId || undefined,
       context: {
         title: this.sourceTitle,
         url: this.sourceUrl,
@@ -685,6 +728,7 @@ struct Index {
     this.tags = '';
     this.sourceTitle = '';
     this.sourceUrl = '';
+    this.folderId = '';
     this.note = '';
     this.documentText = '';
     this.audioStatus = '录音能力预留，后续接入 AVRecorder';
@@ -704,6 +748,7 @@ struct Index {
     this.tags = draft.tags;
     this.sourceTitle = draft.sourceTitle;
     this.sourceUrl = draft.sourceUrl;
+    this.folderId = draft.folderId ?? '';
     this.note = draft.note;
     this.documentText = draft.documentText;
     this.audioStatus = draft.audioStatus;
@@ -722,6 +767,7 @@ struct Index {
       tags: this.tags,
       sourceTitle: this.sourceTitle,
       sourceUrl: this.sourceUrl,
+      folderId: this.folderId || undefined,
       note: this.note,
       documentText: this.documentText,
       audioStatus: this.audioStatus,
@@ -739,11 +785,16 @@ struct Index {
     this.ideas = await ideaRepository.list();
   }
 
+  private async reloadFolders(): Promise<void> {
+    this.folders = await ideaRepository.listFolders();
+  }
+
   private filteredIdeas(): Idea[] {
     const query = this.search.trim().toLowerCase();
     return this.ideas.filter((idea: Idea) => {
       const typeOk = this.typeFilter === 'all' || idea.type === this.typeFilter;
       const tagOk = !this.tagFilter || idea.tags.includes(this.tagFilter);
+      const folderOk = this.folderFilter === 'all' || idea.folderId === this.folderFilter;
       const text = [
         idea.title,
         idea.plainText,
@@ -752,7 +803,7 @@ struct Index {
         idea.context.url,
         idea.tags.join(' ')
       ].join(' ').toLowerCase();
-      return typeOk && tagOk && (!query || text.includes(query));
+      return typeOk && tagOk && folderOk && (!query || text.includes(query));
     });
   }
 
@@ -821,6 +872,74 @@ struct Index {
       .map((entry) => entry[0]);
   }
 
+  @Builder
+  private FolderManagerPanel() {
+    Column({ space: 8 }) {
+      Row() {
+        Text('文件夹管理')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+        Blank()
+        Button('新建文件夹')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            await ideaRepository.createFolder(`文件夹 ${this.folders.length + 1}`);
+            await this.reloadFolders();
+          })
+      }
+      if (this.folders.length > 0) {
+        ForEach(this.folders, (folder: IdeaFolder) => {
+          Row() {
+            Column({ space: 2 }) {
+              Text(folder.name)
+                .fontSize(14)
+                .fontWeight(FontWeight.Bold)
+              Text(folder.id)
+                .fontSize(11)
+                .fontColor('#667085')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .layoutWeight(1)
+            Button('选中')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(() => this.folderId = folder.id)
+            Button('改名')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await ideaRepository.updateFolder(folder.id, { name: `${folder.name}*` });
+                await this.reloadFolders();
+              })
+            Button('删除')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .fontColor('#B42318')
+              .onClick(async () => {
+                await ideaRepository.deleteFolder(folder.id);
+                if (this.folderFilter === folder.id) {
+                  this.folderFilter = 'all';
+                }
+                if (this.folderId === folder.id) {
+                  this.folderId = '';
+                }
+                await this.reloadFolders();
+                await this.reloadIdeas();
+              })
+          }
+          .width('100%')
+        }, (folder: IdeaFolder) => folder.id)
+      } else {
+        Text('暂无文件夹，先创建一个。')
+          .fontSize(12)
+          .fontColor('#667085')
+      }
+    }
+    .padding(12)
+    .width('100%')
+    .backgroundColor('#FBFCFD')
+    .border({ width: 1, color: '#D8DDE6' })
+    .borderRadius(8)
+  }
+
   private async shareIdeas(): Promise<void> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const items = this.selectedIds.length > 0
@@ -870,7 +989,7 @@ struct Index {
       plainText: this.documentText || '',
       note: this.note || '页面截图兜底',
       tags: this.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0),
-      folderId: this.folderFilter === 'all' ? undefined : this.folderFilter,
+      folderId: this.folderId || undefined,
       context: {
         title: this.sourceTitle || '当前页面截图',
         url: this.sourceUrl,

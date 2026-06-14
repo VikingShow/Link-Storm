@@ -4,11 +4,12 @@ import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
-import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_KEY = 'ideas_json';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
+const FOLDERS_KEY = 'folders_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
 const BACKUP_SCHEMA = 'link-storm-backup';
@@ -35,6 +36,75 @@ export class IdeaRepository {
     const raw = await this.ensureStore().get(IDEAS_KEY, '[]') as string;
     const ideas: Idea[] = JSON.parse(raw) as Idea[];
     return ideas.sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  async listFolders(): Promise<IdeaFolder[]> {
+    const raw = await this.ensureStore().get(FOLDERS_KEY, '[]') as string;
+    const folders: IdeaFolder[] = JSON.parse(raw) as IdeaFolder[];
+    return folders.sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  async createFolder(name: string, color: string = '#136F63'): Promise<IdeaFolder> {
+    const folders = await this.listFolders();
+    const now = new Date().toISOString();
+    const folder: IdeaFolder = {
+      id: this.createId(),
+      name: name.trim() || '未命名文件夹',
+      color,
+      createdAt: now,
+      updatedAt: now
+    };
+    folders.unshift(folder);
+    await this.persistFolders(folders);
+    return folder;
+  }
+
+  async updateFolder(id: string, patch: Partial<IdeaFolder>): Promise<void> {
+    const folders = await this.listFolders();
+    const now = new Date().toISOString();
+    const next = folders.map((folder: IdeaFolder) => {
+      if (folder.id !== id) {
+        return folder;
+      }
+      return {
+        id: folder.id,
+        name: patch.name ?? folder.name,
+        color: patch.color ?? folder.color,
+        createdAt: folder.createdAt,
+        updatedAt: now
+      } as IdeaFolder;
+    });
+    await this.persistFolders(next);
+  }
+
+  async deleteFolder(id: string, reassignIdeaFolderId?: string): Promise<void> {
+    const folders = await this.listFolders();
+    await this.persistFolders(folders.filter((folder: IdeaFolder) => folder.id !== id));
+    const ideas = await this.list();
+    const now = new Date().toISOString();
+    const next = ideas.map((idea: Idea) => {
+      if (idea.folderId !== id) {
+        return idea;
+      }
+      return {
+        id: idea.id,
+        title: idea.title,
+        type: idea.type,
+        plainText: idea.plainText,
+        note: idea.note,
+        tags: idea.tags,
+        folderId: reassignIdeaFolderId,
+        context: idea.context,
+        asset: idea.asset,
+        isFavorite: idea.isFavorite,
+        isArchived: idea.isArchived,
+        syncStatus: idea.syncStatus,
+        aiStatus: idea.aiStatus,
+        createdAt: idea.createdAt,
+        updatedAt: now
+      } as Idea;
+    });
+    await this.persist(next);
   }
 
   async save(draft: IdeaDraft): Promise<Idea> {
@@ -123,11 +193,13 @@ export class IdeaRepository {
   }
 
   async exportJson(): Promise<string> {
+    const folders = await this.listFolders();
     return JSON.stringify({
       schema: EXPORT_SCHEMA,
       version: 1,
       exportedAt: new Date().toISOString(),
-      ideas: await this.list()
+      ideas: await this.list(),
+      folders
     } as IdeaExportPayload, null, 2);
   }
 
@@ -175,12 +247,14 @@ export class IdeaRepository {
     fileIo.mkdirSync(attachmentsDir);
 
     const ideas = await this.list();
+    const folders = await this.listFolders();
     const attachmentEntries = await this.collectBackupAttachments(ideas, attachmentsDir);
     const backup: IdeaBackupPayload = {
       schema: BACKUP_SCHEMA,
       version: 1,
       exportedAt: new Date().toISOString(),
       ideas,
+      folders,
       attachments: attachmentEntries
     };
     const manifestFile = fileIo.openSync(manifestPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
@@ -229,6 +303,9 @@ export class IdeaRepository {
     const existing = await this.list();
     const merged = this.mergeIdeas(existing, parsed.ideas, strategy);
     await this.persist(merged.items);
+    if (Array.isArray((parsed as IdeaBackupPayload).folders)) {
+      await this.persistFolders(this.mergeFolders(await this.listFolders(), (parsed as IdeaBackupPayload).folders, strategy));
+    }
     this.cleanupBackupTemp(tempRoot);
     return {
       inserted: merged.inserted,
@@ -255,6 +332,9 @@ export class IdeaRepository {
     const existing = await this.list();
     const merged = this.mergeIdeas(existing, parsed.ideas as Idea[], strategy);
     await this.persist(merged.items);
+    if (Array.isArray(parsed.folders)) {
+      await this.persistFolders(this.mergeFolders(await this.listFolders(), parsed.folders as IdeaFolder[], strategy));
+    }
     return {
       inserted: merged.inserted,
       updated: merged.updated,
@@ -450,6 +530,11 @@ export class IdeaRepository {
     await this.ensureStore().flush();
   }
 
+  private async persistFolders(folders: IdeaFolder[]): Promise<void> {
+    await this.ensureStore().put(FOLDERS_KEY, JSON.stringify(folders));
+    await this.ensureStore().flush();
+  }
+
   private ensureStore(): preferences.Preferences {
     if (!this.pref) {
       throw new Error('IdeaRepository is not initialized');
@@ -519,6 +604,31 @@ export class IdeaRepository {
       items: Array.from(map.values()).sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     };
     return result;
+  }
+
+  private mergeFolders(existing: IdeaFolder[], incoming: IdeaFolder[], strategy: ImportConflictStrategy): IdeaFolder[] {
+    const map = new Map<string, IdeaFolder>();
+    for (const folder of existing) {
+      map.set(folder.id, folder);
+    }
+
+    for (const folder of incoming) {
+      if (!folder || typeof folder.id !== 'string') {
+        continue;
+      }
+      const current = map.get(folder.id);
+      if (!current) {
+        map.set(folder.id, folder);
+        continue;
+      }
+      const incomingNewer = Date.parse(folder.updatedAt) > Date.parse(current.updatedAt);
+      const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
+      if (shouldOverwrite) {
+        map.set(folder.id, folder);
+      }
+    }
+
+    return Array.from(map.values()).sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
   private timestampStamp(): string {

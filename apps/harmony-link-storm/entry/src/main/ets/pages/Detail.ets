@@ -1,6 +1,6 @@
 ﻿import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
-import { Idea, IdeaAsset, ideaTypeLabel } from '../model/IdeaModels';
+import { Idea, IdeaAsset, IdeaFolder, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
 
@@ -20,6 +20,7 @@ struct Detail {
   @State private sourceTitle: string = '';
   @State private sourceUrl: string = '';
   @State private folderId: string = '';
+  @State private folders: IdeaFolder[] = [];
   @State private assetLocalUri: string = '';
   @State private assetMimeType: string = '';
   @State private assetDurationMs: number = 0;
@@ -34,6 +35,7 @@ struct Detail {
     this.ideaId = params.id ?? '';
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     audioPlaybackService.setContext(context);
+    await this.refreshFolders();
     await this.reload();
   }
 
@@ -143,8 +145,33 @@ struct Detail {
           .onChange((value: string) => this.sourceTitle = value)
         TextInput({ text: this.sourceUrl, placeholder: '鏉ユ簮閾炬帴' })
           .onChange((value: string) => this.sourceUrl = value)
-        TextInput({ text: this.folderId, placeholder: 'folder id' })
-          .onChange((value: string) => this.folderId = value)
+          Text('文件夹')
+          .fontSize(12)
+          .fontColor('#667085')
+        if (this.folders.length > 0) {
+          Row({ space: 8 }) {
+            ForEach(this.folders, (folder: IdeaFolder) => {
+              Button(folder.name)
+                .buttonStyle(ButtonStyleMode.NORMAL)
+                .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
+                .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
+                .onClick(() => this.folderId = folder.id)
+            }, (folder: IdeaFolder) => folder.id)
+          }
+          Button('刷新文件夹')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.refreshFolders();
+            })
+        } else {
+          TextInput({ text: this.folderId, placeholder: 'folder id' })
+            .onChange((value: string) => this.folderId = value)
+          Button('刷新文件夹')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.refreshFolders();
+            })
+        }
         TextArea({ text: this.plainText, placeholder: 'plain text' })
           .height(160)
           .onChange((value: string) => this.plainText = value)
@@ -319,6 +346,10 @@ struct Detail {
       previewPath: this.assetPreviewPath || undefined
     };
     return asset;
+  }
+
+  private async refreshFolders(): Promise<void> {
+    this.folders = await ideaRepository.listFolders();
   }
 
   private contextSummary(): string {

@@ -66,6 +66,7 @@ export class AudioPlaybackService {
     }
     await this.invokeWithCallback((done) => this.player?.stop(done));
     await this.invokeWithCallback((done) => this.player?.reset(done));
+    await this.release();
   }
 
   async release(): Promise<void> {

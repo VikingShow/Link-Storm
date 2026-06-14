@@ -8,6 +8,7 @@ import { systemShare } from '@kit.ShareKit';
 import { HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
+import { floatingBallService } from '../services/FloatingBallService';
 import { ideaRepository } from '../repository/IdeaRepository';
 
 const PHONE_BREAKPOINT = 680;
@@ -54,6 +55,7 @@ struct Index {
   @State private importStrategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER;
   @State private exportStatus: string = '';
   @State private screenshotStatus: string = '';
+  @State private floatingBallStatus: string = 'floating ball disabled';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
   private handwritingCanvasId: string = 'handwriting-canvas';
@@ -177,6 +179,29 @@ struct Index {
           .backgroundColor(this.importStrategy === ImportConflictStrategy.FORCE_OVERWRITE ? '#136F63' : '#FFFFFF')
           .fontColor(this.importStrategy === ImportConflictStrategy.FORCE_OVERWRITE ? '#FFFFFF' : '#697386')
           .onClick(() => this.importStrategy = ImportConflictStrategy.FORCE_OVERWRITE)
+      }
+      Row({ space: 8 }) {
+        Button(this.floatingBallEnabled() ? 'Disable floating ball' : 'Enable floating ball')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.floatingBallEnabled() ? '#136F63' : '#FFFFFF')
+          .fontColor(this.floatingBallEnabled() ? '#FFFFFF' : '#697386')
+          .onClick(async () => {
+            try {
+              if (floatingBallService.isEnabled()) {
+                await floatingBallService.disable();
+                this.floatingBallStatus = 'floating ball disabled';
+              } else {
+                const bundleName = await floatingBallService.enable();
+                this.floatingBallStatus = `floating ball enabled: ${bundleName}`;
+              }
+            } catch (err) {
+              this.floatingBallStatus = `floating ball unavailable: ${String(err)}`;
+            }
+          })
+        Text(this.floatingBallStatus)
+          .fontSize(12)
+          .fontColor('#697386')
+          .layoutWeight(1)
       }
     }
     .width('100%')
@@ -550,6 +575,10 @@ struct Index {
       this.activeType = IdeaType.DOCUMENT;
       this.layoutMode = 'desktop';
     }
+  }
+
+  private floatingBallEnabled(): boolean {
+    return floatingBallService.isEnabled();
   }
 
   private async saveDraft(): Promise<void> {

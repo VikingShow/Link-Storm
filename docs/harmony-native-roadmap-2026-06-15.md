@@ -23,6 +23,7 @@ Date: 2026-06-15
 - Detail placeholders and floating-ball status feedback now use readable Chinese copy
 - Repository fallback titles and import/export errors now use localized Chinese messages
 - Home-page audio and handwriting status text now reflects the implemented native capture flow
+- Audio recording, playback, and floating-ball service errors now surface localized Chinese messages
 
 ## Verified milestone
 
@@ -84,6 +85,10 @@ fix(harmony): localize repository fallback messages
 
 ```text
 fix(harmony): align home capture status copy
+```
+
+```text
+fix(harmony): localize native service errors
 ```
 
 Verification:

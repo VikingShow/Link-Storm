@@ -81,7 +81,7 @@ export class AudioRecordService {
       this.cleanupRecorder();
       this.removeCurrentFile();
       this.resetSession();
-      this.lastError = `Failed to start audio recording: ${String(err)}`;
+      this.lastError = `启动录音失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
@@ -91,7 +91,8 @@ export class AudioRecordService {
       return;
     }
     if (!this.avRecorder) {
-      throw new Error('Recorder is not initialized');
+      this.lastError = '录音器尚未初始化';
+      throw new Error(this.lastError);
     }
     try {
       await this.avRecorder.pause();
@@ -100,7 +101,7 @@ export class AudioRecordService {
       this.state = 'paused';
       this.lastError = '';
     } catch (err) {
-      this.lastError = `Failed to pause audio recording: ${String(err)}`;
+      this.lastError = `暂停录音失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
@@ -110,7 +111,8 @@ export class AudioRecordService {
       return;
     }
     if (!this.avRecorder) {
-      throw new Error('Recorder is not initialized');
+      this.lastError = '录音器尚未初始化';
+      throw new Error(this.lastError);
     }
     try {
       await this.avRecorder.resume();
@@ -118,21 +120,22 @@ export class AudioRecordService {
       this.state = 'recording';
       this.lastError = '';
     } catch (err) {
-      this.lastError = `Failed to resume audio recording: ${String(err)}`;
+      this.lastError = `继续录音失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
 
   async stop(): Promise<AudioRecordResult> {
     if (this.state !== 'recording' && this.state !== 'paused') {
-      throw new Error('Recorder is not active');
+      this.lastError = '当前没有正在进行的录音';
+      throw new Error(this.lastError);
     }
     const resultPath = this.currentPath;
     const durationMs = this.totalDurationMs();
     try {
       await this.avRecorder?.stop();
     } catch (err) {
-      this.lastError = `Failed to stop audio recording: ${String(err)}`;
+      this.lastError = `保存录音失败：${String(err)}`;
       throw new Error(this.lastError);
     } finally {
       await this.releaseRecorderQuietly();
@@ -234,7 +237,8 @@ export class AudioRecordService {
 
   private ensureContext(): common.UIAbilityContext {
     if (!this.context) {
-      throw new Error('AudioRecordService is not initialized');
+      this.lastError = '录音服务尚未初始化';
+      throw new Error(this.lastError);
     }
     return this.context;
   }

@@ -22,11 +22,12 @@ export class FloatingBallService {
 
   async enable(): Promise<string> {
     if (!this.context) {
-      throw new Error('FloatingBallService is not initialized');
+      this.lastError = '悬浮球服务尚未初始化';
+      throw new Error(this.lastError);
     }
     try {
       if (!floatingBall.isFloatingBallEnabled()) {
-        throw new Error('Floating ball is not supported on this device');
+        throw new Error('当前设备不支持悬浮球');
       }
 
       if (!this.controller) {
@@ -35,7 +36,7 @@ export class FloatingBallService {
           try {
             await this.restoreMainWindow();
           } catch (err) {
-            this.lastError = `restore failed: ${String(err)}`;
+            this.lastError = `恢复主窗口失败：${String(err)}`;
           }
         });
       }
@@ -44,7 +45,7 @@ export class FloatingBallService {
       await this.controller.startFloatingBall({
         template: floatingBall.FloatingBallTemplate.EMPHATIC,
         title: 'Link Storm',
-        content: 'Tap to capture',
+        content: '点击继续捕捉',
         backgroundColor: '#136F63'
       });
       this.enabled = true;
@@ -53,7 +54,7 @@ export class FloatingBallService {
     } catch (err) {
       this.enabled = false;
       this.lastError = String(err);
-      throw new Error(`Floating ball unavailable: ${this.lastError}`);
+      throw new Error(`悬浮球不可用：${this.lastError}`);
     }
   }
 
@@ -66,7 +67,7 @@ export class FloatingBallService {
       await this.controller.stopFloatingBall();
       this.lastError = '';
     } catch (err) {
-      this.lastError = `stop failed: ${String(err)}`;
+      this.lastError = `关闭悬浮球失败：${String(err)}`;
       throw new Error(this.lastError);
     } finally {
       this.enabled = false;
@@ -92,7 +93,7 @@ export class FloatingBallService {
       await this.controller.restoreMainWindow(want);
       this.lastError = '';
     } catch (err) {
-      this.lastError = `restore failed: ${String(err)}`;
+      this.lastError = `恢复主窗口失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }

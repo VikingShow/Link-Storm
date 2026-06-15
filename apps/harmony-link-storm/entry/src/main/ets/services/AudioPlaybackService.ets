@@ -29,7 +29,7 @@ export class AudioPlaybackService {
   async play(path: string): Promise<void> {
     const resolved = this.resolvePath(path);
     if (!this.audioFileExists(resolved)) {
-      this.lastError = `Audio file not found: ${resolved}`;
+      this.lastError = `音频文件不存在：${resolved}`;
       throw new Error(this.lastError);
     }
     try {
@@ -61,7 +61,7 @@ export class AudioPlaybackService {
       this.lastError = '';
     } catch (err) {
       await this.releaseQuietly();
-      this.lastError = `Failed to play audio: ${String(err)}`;
+      this.lastError = `播放音频失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
@@ -74,7 +74,7 @@ export class AudioPlaybackService {
       await this.invokeWithCallback((done) => this.player?.pause(done));
       this.lastError = '';
     } catch (err) {
-      this.lastError = `Failed to pause audio playback: ${String(err)}`;
+      this.lastError = `暂停音频失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
@@ -90,7 +90,7 @@ export class AudioPlaybackService {
       this.lastError = '';
     } catch (err) {
       await this.releaseQuietly();
-      this.lastError = `Failed to stop audio playback: ${String(err)}`;
+      this.lastError = `停止音频失败：${String(err)}`;
       throw new Error(this.lastError);
     }
   }
@@ -120,7 +120,7 @@ export class AudioPlaybackService {
       return;
     }
     this.player.on('error', () => {
-      this.lastError = 'Audio player reported a playback error';
+      this.lastError = '音频播放器报告播放错误';
       this.closeFileHandle();
       this.currentPath = '';
     });
@@ -128,7 +128,8 @@ export class AudioPlaybackService {
 
   private async preparePlayer(): Promise<void> {
     if (!this.player) {
-      throw new Error('Audio player is not initialized');
+      this.lastError = '音频播放器尚未初始化';
+      throw new Error(this.lastError);
     }
     this.player.audioRendererInfo = {
       usage: audio.StreamUsage.STREAM_USAGE_MUSIC,

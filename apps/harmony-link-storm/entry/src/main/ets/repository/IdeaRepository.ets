@@ -85,7 +85,7 @@ export class IdeaRepository {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    await this.ensureStore().insert(TAGS_TABLE, this.tagToBucket(tag));
+    await this.insertRowGuarded(TAGS_TABLE, this.tagToBucket(tag), '创建标签失败');
     return tag;
   }
 
@@ -101,11 +101,11 @@ export class IdeaRepository {
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };
-    await this.ensureStore().update(this.tagToBucket(next), this.predicatesFor(TAGS_TABLE, id));
+    await this.updateRowsGuarded(this.tagToBucket(next), this.predicatesFor(TAGS_TABLE, id), '更新标签失败');
   }
 
   async deleteTag(id: string): Promise<void> {
-    await this.ensureStore().delete(this.predicatesFor(TAGS_TABLE, id));
+    await this.deleteRowsGuarded(this.predicatesFor(TAGS_TABLE, id), '删除标签失败');
   }
 
   async assignFolder(ids: string[], folderId?: string): Promise<void> {
@@ -135,7 +135,7 @@ export class IdeaRepository {
         createdAt: current.createdAt,
         updatedAt: now
       };
-      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+      await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id), '更新想法文件夹失败');
     }
   }
 
@@ -173,7 +173,7 @@ export class IdeaRepository {
         createdAt: current.createdAt,
         updatedAt: now
       };
-      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+      await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id), '更新想法标签失败');
     }
   }
 
@@ -205,7 +205,7 @@ export class IdeaRepository {
         createdAt: current.createdAt,
         updatedAt: now
       };
-      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+      await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id), '移除想法标签失败');
     }
   }
 
@@ -217,7 +217,7 @@ export class IdeaRepository {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    await this.ensureStore().insert(FOLDERS_TABLE, this.folderToBucket(folder));
+    await this.insertRowGuarded(FOLDERS_TABLE, this.folderToBucket(folder), '创建文件夹失败');
     return folder;
   }
 
@@ -233,11 +233,11 @@ export class IdeaRepository {
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };
-    await this.ensureStore().update(this.folderToBucket(next), this.predicatesFor(FOLDERS_TABLE, id));
+    await this.updateRowsGuarded(this.folderToBucket(next), this.predicatesFor(FOLDERS_TABLE, id), '更新文件夹失败');
   }
 
   async deleteFolder(id: string, reassignIdeaFolderId?: string): Promise<void> {
-    await this.ensureStore().delete(this.predicatesFor(FOLDERS_TABLE, id));
+    await this.deleteRowsGuarded(this.predicatesFor(FOLDERS_TABLE, id), '删除文件夹失败');
     const ideas = await this.list();
     const now = new Date().toISOString();
     for (const idea of ideas.filter((item: Idea) => item.folderId === id)) {
@@ -258,7 +258,7 @@ export class IdeaRepository {
         createdAt: idea.createdAt,
         updatedAt: now
       };
-      await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, idea.id));
+      await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, idea.id), '重分配想法文件夹失败');
     }
   }
 
@@ -281,7 +281,7 @@ export class IdeaRepository {
       createdAt: now,
       updatedAt: now
     };
-    await this.ensureStore().insert(IDEAS_TABLE, this.ideaToBucket(idea));
+    await this.insertRowGuarded(IDEAS_TABLE, this.ideaToBucket(idea), '保存想法失败');
     return idea;
   }
 
@@ -307,7 +307,7 @@ export class IdeaRepository {
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };
-    await this.ensureStore().update(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id));
+    await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id), '更新想法失败');
   }
 
   async saveCaptureDraft(draft: CaptureDraftState): Promise<void> {
@@ -348,12 +348,12 @@ export class IdeaRepository {
   }
 
   async clearCaptureDraft(): Promise<void> {
-    await this.ensureStore().delete(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID));
+    await this.deleteRowsGuarded(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID), '清除捕捉草稿失败');
     this.clearLegacyCaptureDraft();
   }
 
   async delete(id: string): Promise<void> {
-    await this.ensureStore().delete(this.predicatesFor(IDEAS_TABLE, id));
+    await this.deleteRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '删除想法失败');
   }
 
   async getById(id: string): Promise<Idea | undefined> {
@@ -1015,9 +1015,25 @@ export class IdeaRepository {
     }
   }
 
+  private async deleteRowsGuarded(predicates: relationalStore.RdbPredicates, message: string): Promise<void> {
+    try {
+      await this.ensureStore().delete(predicates);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
   private async insertRowGuarded(table: string, bucket: ValuesBucket, message: string): Promise<void> {
     try {
       await this.ensureStore().insert(table, bucket);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async updateRowsGuarded(bucket: ValuesBucket, predicates: relationalStore.RdbPredicates, message: string): Promise<void> {
+    try {
+      await this.ensureStore().update(bucket, predicates);
     } catch (err) {
       throw new Error(`${message}：${String(err)}`);
     }

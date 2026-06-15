@@ -29,6 +29,7 @@ Date: 2026-06-15
 - Handwriting preview save failures now surface directly in the capture panel
 - Repository schema setup and import table replacement now use localized guarded RDB helpers
 - Repository list and detail reads now use localized guarded RDB queries
+- Repository idea, tag, and folder writes now use localized guarded RDB helpers
 
 ## Verified milestone
 
@@ -114,6 +115,10 @@ feat(harmony): guard repository schema writes
 
 ```text
 feat(harmony): guard repository read queries
+```
+
+```text
+feat(harmony): guard repository write helpers
 ```
 
 Verification:

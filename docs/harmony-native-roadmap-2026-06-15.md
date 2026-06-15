@@ -18,6 +18,7 @@ Date: 2026-06-15
 - Audio recorder resource cleanup and microphone permission request failures are handled explicitly
 - Repository result-set cleanup, temp backup cleanup, and managed file cleanup now use explicit guards
 - DevEco CLI produces `entry-default-unsigned.hap`; project signing remains intentionally unconfigured
+- Repository row parsing now uses explicit fallbacks for malformed RDB rows
 
 ## Verified milestone
 
@@ -61,6 +62,10 @@ feat(harmony): guard repository resource cleanup
 docs(harmony): document unsigned hap build output
 ```
 
+```text
+feat(harmony): guard repository row parsing
+```
+
 Verification:
 
 ```text
@@ -87,11 +92,10 @@ BUILD SUCCESSFUL
 
 ## Next milestones
 
-1. Continue reducing RDB row parsing warnings with explicit fallback behavior
-2. Prepare real signing profile inputs for physical-device installation
-3. Continue splitting remaining draft/file helpers from the main RDB path
-4. Validate audio capture and playback on a physical HarmonyOS device
-5. Revisit remaining SDK compatibility warnings after feature parity improves
+1. Prepare real signing profile inputs for physical-device installation
+2. Continue splitting remaining draft/file helpers from the main RDB path
+3. Validate audio capture and playback on a physical HarmonyOS device
+4. Revisit remaining SDK compatibility warnings after feature parity improves
 
 ## Git workflow
 

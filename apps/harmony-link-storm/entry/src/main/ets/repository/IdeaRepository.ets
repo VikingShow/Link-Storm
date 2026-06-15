@@ -719,7 +719,11 @@ export class IdeaRepository {
   private readIdeas(resultSet: relationalStore.ResultSet): Idea[] {
     const items: Idea[] = [];
     while (resultSet.goToNextRow()) {
-      items.push(this.rowToIdea(resultSet));
+      try {
+        items.push(this.rowToIdea(resultSet));
+      } catch {
+        // Skip rows that cannot be converted into a valid idea.
+      }
     }
     return items.sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
@@ -727,7 +731,11 @@ export class IdeaRepository {
   private readFolders(resultSet: relationalStore.ResultSet): IdeaFolder[] {
     const items: IdeaFolder[] = [];
     while (resultSet.goToNextRow()) {
-      items.push(this.rowToFolder(resultSet));
+      try {
+        items.push(this.rowToFolder(resultSet));
+      } catch {
+        // Skip rows that cannot be converted into a valid folder.
+      }
     }
     return items.sort((a: IdeaFolder, b: IdeaFolder) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
@@ -735,53 +743,60 @@ export class IdeaRepository {
   private readTags(resultSet: relationalStore.ResultSet): IdeaTag[] {
     const items: IdeaTag[] = [];
     while (resultSet.goToNextRow()) {
-      items.push(this.rowToTag(resultSet));
+      try {
+        items.push(this.rowToTag(resultSet));
+      } catch {
+        // Skip rows that cannot be converted into a valid tag.
+      }
     }
     return items.sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
   private rowToIdea(resultSet: relationalStore.ResultSet): Idea {
+    const now = new Date().toISOString();
     return {
-      id: resultSet.getString(resultSet.getColumnIndex('id')),
-      title: resultSet.getString(resultSet.getColumnIndex('title')),
-      type: resultSet.getString(resultSet.getColumnIndex('type')) as IdeaType,
-      plainText: resultSet.getString(resultSet.getColumnIndex('plainText')),
-      note: resultSet.getString(resultSet.getColumnIndex('note')),
-      tags: JSON.parse(resultSet.getString(resultSet.getColumnIndex('tags'))) as string[],
+      id: this.readString(resultSet, 'id', this.createId()),
+      title: this.readString(resultSet, 'title', 'Untitled'),
+      type: this.readIdeaType(resultSet),
+      plainText: this.readString(resultSet, 'plainText'),
+      note: this.readString(resultSet, 'note'),
+      tags: this.parseTagsJson(this.readString(resultSet, 'tags', '[]')),
       folderId: this.readNullableString(resultSet, 'folderId') || undefined,
       context: {
-        title: resultSet.getString(resultSet.getColumnIndex('contextTitle')),
-        url: resultSet.getString(resultSet.getColumnIndex('contextUrl')),
-        manualNote: resultSet.getString(resultSet.getColumnIndex('contextManualNote')),
-        capturedAt: resultSet.getString(resultSet.getColumnIndex('contextCapturedAt'))
+        title: this.readString(resultSet, 'contextTitle'),
+        url: this.readString(resultSet, 'contextUrl'),
+        manualNote: this.readString(resultSet, 'contextManualNote'),
+        capturedAt: this.readString(resultSet, 'contextCapturedAt', now)
       },
       asset: this.parseAssetJson(this.readNullableString(resultSet, 'assetJson')),
-      isFavorite: resultSet.getLong(resultSet.getColumnIndex('isFavorite')) === 1,
-      isArchived: resultSet.getLong(resultSet.getColumnIndex('isArchived')) === 1,
-      syncStatus: resultSet.getString(resultSet.getColumnIndex('syncStatus')),
-      aiStatus: resultSet.getString(resultSet.getColumnIndex('aiStatus')),
-      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
-      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+      isFavorite: this.readLong(resultSet, 'isFavorite') === 1,
+      isArchived: this.readLong(resultSet, 'isArchived') === 1,
+      syncStatus: this.readString(resultSet, 'syncStatus', 'local_only'),
+      aiStatus: this.readString(resultSet, 'aiStatus', 'not_processed'),
+      createdAt: this.readString(resultSet, 'createdAt', now),
+      updatedAt: this.readString(resultSet, 'updatedAt', now)
     };
   }
 
   private rowToFolder(resultSet: relationalStore.ResultSet): IdeaFolder {
+    const now = new Date().toISOString();
     return {
-      id: resultSet.getString(resultSet.getColumnIndex('id')),
-      name: resultSet.getString(resultSet.getColumnIndex('name')),
-      color: resultSet.getString(resultSet.getColumnIndex('color')),
-      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
-      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+      id: this.readString(resultSet, 'id', this.createId()),
+      name: this.readString(resultSet, 'name', 'Unnamed folder'),
+      color: this.readString(resultSet, 'color', '#136F63'),
+      createdAt: this.readString(resultSet, 'createdAt', now),
+      updatedAt: this.readString(resultSet, 'updatedAt', now)
     };
   }
 
   private rowToTag(resultSet: relationalStore.ResultSet): IdeaTag {
+    const now = new Date().toISOString();
     return {
-      id: resultSet.getString(resultSet.getColumnIndex('id')),
-      name: resultSet.getString(resultSet.getColumnIndex('name')),
-      color: resultSet.getString(resultSet.getColumnIndex('color')),
-      createdAt: resultSet.getString(resultSet.getColumnIndex('createdAt')),
-      updatedAt: resultSet.getString(resultSet.getColumnIndex('updatedAt'))
+      id: this.readString(resultSet, 'id', this.createId()),
+      name: this.readString(resultSet, 'name', 'Unnamed tag'),
+      color: this.readString(resultSet, 'color', '#0B4F47'),
+      createdAt: this.readString(resultSet, 'createdAt', now),
+      updatedAt: this.readString(resultSet, 'updatedAt', now)
     };
   }
 
@@ -904,12 +919,52 @@ export class IdeaRepository {
   }
 
   private readNullableString(resultSet: relationalStore.ResultSet, columnName: string): string {
+    return this.readString(resultSet, columnName);
+  }
+
+  private readString(resultSet: relationalStore.ResultSet, columnName: string, fallback: string = ''): string {
     const idx = resultSet.getColumnIndex(columnName);
     if (idx < 0) {
-      return '';
+      return fallback;
     }
-    const value = resultSet.getString(idx);
-    return value ?? '';
+    try {
+      const value = resultSet.getString(idx);
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private readLong(resultSet: relationalStore.ResultSet, columnName: string, fallback: number = 0): number {
+    const idx = resultSet.getColumnIndex(columnName);
+    if (idx < 0) {
+      return fallback;
+    }
+    try {
+      return resultSet.getLong(idx);
+    } catch {
+      return fallback;
+    }
+  }
+
+  private readIdeaType(resultSet: relationalStore.ResultSet): IdeaType {
+    const value = this.readString(resultSet, 'type', IdeaType.DOCUMENT);
+    if (value === IdeaType.AUDIO || value === IdeaType.HANDWRITING || value === IdeaType.DOCUMENT) {
+      return value as IdeaType;
+    }
+    return IdeaType.DOCUMENT;
+  }
+
+  private parseTagsJson(value: string): string[] {
+    try {
+      const parsed = JSON.parse(value) as string[];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.filter((tag: string) => typeof tag === 'string');
+    } catch {
+      return [];
+    }
   }
 
   private async getFolderById(id: string): Promise<IdeaFolder | undefined> {

@@ -681,9 +681,14 @@ export class IdeaRepository {
   }
 
   private async replaceIdeas(items: Idea[]): Promise<void> {
+    const existing = await this.list();
+    const keepPaths = this.collectManagedAssetPaths(items);
     await this.deleteTableRowsGuarded(IDEAS_TABLE, '清空想法表失败');
     for (const item of items) {
       await this.insertRowGuarded(IDEAS_TABLE, this.ideaToBucket(item), '写入想法数据失败');
+    }
+    for (const item of existing) {
+      this.cleanupManagedIdeaAssetFiles(item.asset, keepPaths);
     }
   }
 
@@ -947,6 +952,23 @@ export class IdeaRepository {
     if (previewPath && previewPath !== storedPath && this.isManagedAttachmentPath(previewPath) && !keepSet.has(previewPath)) {
       this.removeFileIfExists(previewPath);
     }
+  }
+
+  private collectManagedAssetPaths(ideas: Idea[]): string[] {
+    const paths: string[] = [];
+    for (const idea of ideas) {
+      const asset = idea.asset;
+      if (!asset) {
+        continue;
+      }
+      if (asset.localUri && this.isManagedAttachmentPath(asset.localUri) && !paths.includes(asset.localUri)) {
+        paths.push(asset.localUri);
+      }
+      if (asset.previewPath && this.isManagedAttachmentPath(asset.previewPath) && !paths.includes(asset.previewPath)) {
+        paths.push(asset.previewPath);
+      }
+    }
+    return paths;
   }
 
   private cleanupManagedPath(path: string | undefined): void {

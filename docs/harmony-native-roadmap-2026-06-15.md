@@ -41,6 +41,7 @@ Date: 2026-06-15
 - Folder and tag management now supports named create/rename flows, and deleting a tag removes it from existing ideas
 - Renaming a tag now synchronizes the tag name across existing ideas without creating duplicates
 - Deleting an idea now removes managed local attachment and preview files
+- Import replacement now cleans up managed attachment files no longer referenced by imported ideas
 
 ## Verified milestone
 
@@ -174,6 +175,10 @@ feat(harmony): sync renamed idea tags
 
 ```text
 feat(harmony): cleanup deleted idea attachments
+```
+
+```text
+feat(harmony): cleanup replaced import attachments
 ```
 
 Verification:

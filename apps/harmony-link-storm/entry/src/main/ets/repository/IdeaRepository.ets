@@ -531,6 +531,9 @@ export class IdeaRepository {
       if (parsed.schema !== BACKUP_SCHEMA) {
         throw new Error('备份格式不正确');
       }
+      if (!Array.isArray(parsed.ideas)) {
+        throw new Error('备份想法数据不正确');
+      }
       const attachmentsDir = this.prepareImportAttachmentsDir();
       const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir);
       const importedIdeas = this.attachImportedAssets(parsed.ideas, attachmentMap);

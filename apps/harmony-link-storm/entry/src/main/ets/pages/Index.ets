@@ -936,6 +936,20 @@ struct Index {
           .backgroundColor(idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
           .borderRadius(10)
           .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+        if (idea.syncStatus !== 'local_only') {
+          Button('标记本机')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.updateIdeaSyncStatus(idea.id, 'local_only');
+            })
+        }
+        if (idea.syncStatus !== 'synced') {
+          Button('标记已同步')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .onClick(async () => {
+              await this.updateIdeaSyncStatus(idea.id, 'synced');
+            })
+        }
       }
 
       Row({ space: 8 }) {
@@ -1281,6 +1295,11 @@ struct Index {
       return '导入冲突';
     }
     return '仅本机';
+  }
+
+  private async updateIdeaSyncStatus(id: string, syncStatus: string): Promise<void> {
+    await ideaRepository.update(id, { syncStatus });
+    await this.reloadIdeas();
   }
 
   private hasActiveFilters(): boolean {

@@ -61,12 +61,28 @@ struct Detail {
             .fontSize(12)
             .fontColor('#667085')
           if (this.idea) {
-            Text(this.syncStatusLabel(this.idea.syncStatus))
-              .fontSize(11)
-              .fontColor(this.idea.syncStatus === 'conflict' ? '#B42318' : '#0B4F47')
-              .backgroundColor(this.idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
-              .borderRadius(10)
-              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+            Row({ space: 6 }) {
+              Text(this.syncStatusLabel(this.idea.syncStatus))
+                .fontSize(11)
+                .fontColor(this.idea.syncStatus === 'conflict' ? '#B42318' : '#0B4F47')
+                .backgroundColor(this.idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
+                .borderRadius(10)
+                .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+              if (this.idea.syncStatus !== 'local_only') {
+                Button('标记本机')
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .onClick(async () => {
+                    await this.updateSyncStatus('local_only');
+                  })
+              }
+              if (this.idea.syncStatus !== 'synced') {
+                Button('标记已同步')
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .onClick(async () => {
+                    await this.updateSyncStatus('synced');
+                  })
+              }
+            }
           }
         }
         Blank()
@@ -762,6 +778,12 @@ struct Detail {
       return '导入冲突';
     }
     return '仅本机';
+  }
+
+  private async updateSyncStatus(syncStatus: string): Promise<void> {
+    await ideaRepository.update(this.ideaId, { syncStatus });
+    this.status = `同步状态已更新为${this.syncStatusLabel(syncStatus)}`;
+    await this.reload();
   }
 
   private async refreshTags(): Promise<void> {

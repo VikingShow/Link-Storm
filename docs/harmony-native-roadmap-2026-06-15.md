@@ -60,6 +60,7 @@ Date: 2026-06-15
 - Detail AI preparation now supports separate editable result types for summary, action items, questions, transcription, OCR, and auto tags
 - Conservative imports now mark skipped same-ID records as sync conflicts and show sync status on home cards and detail pages
 - Conservative imports now preserve incoming same-ID conflicts as local conflict duplicates instead of dropping the imported version
+- Home cards and detail pages now let users mark records as local-only or synced after reviewing sync/import conflicts
 
 ## Verified milestone
 
@@ -269,6 +270,10 @@ feat(harmony): surface import conflict status
 
 ```text
 feat(harmony): keep import conflict duplicates
+```
+
+```text
+feat(harmony): manage idea sync status
 ```
 
 Verification:

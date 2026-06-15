@@ -57,6 +57,7 @@ Date: 2026-06-15
 - Capture now offers an explicit clipboard read action that fills source links or document text and persists the native capture draft
 - ZIP backup export now records attachment SHA-256 hashes, and ZIP import reuses matching managed attachments instead of duplicating files
 - Folder management now supports two-level folders with parent-aware capture, filtering, batch move, detail editing, import, and export
+- Detail AI preparation now supports separate editable result types for summary, action items, questions, transcription, OCR, and auto tags
 
 ## Verified milestone
 
@@ -254,6 +255,10 @@ feat(harmony): hash backup attachments
 
 ```text
 feat(harmony): support nested folders
+```
+
+```text
+feat(harmony): edit typed ai preparation outputs
 ```
 
 Verification:

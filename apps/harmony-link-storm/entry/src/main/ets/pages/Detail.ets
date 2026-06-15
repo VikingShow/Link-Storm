@@ -32,7 +32,8 @@ struct Detail {
   @State private status: string = '';
   @State private attachmentStatus: string = '';
   @State private aiOutputs: IdeaAiOutput[] = [];
-  @State private aiSummaryDraft: string = '';
+  @State private aiDraftType: string = 'summary';
+  @State private aiDraftContent: string = '';
   @State private aiStatusMessage: string = '';
 
   async aboutToAppear(): Promise<void> {
@@ -379,15 +380,23 @@ struct Detail {
       Text('结果保存在独立记录中，不覆盖原始想法。')
         .fontSize(12)
         .fontColor('#667085')
-      TextArea({ text: this.aiSummaryDraft, placeholder: '手动录入或粘贴后续 AI 摘要' })
-        .height(90)
-        .onChange((value: string) => this.aiSummaryDraft = value)
       Row({ space: 8 }) {
-        Button('保存摘要')
+        this.AiTypeButton('summary')
+        this.AiTypeButton('action_items')
+        this.AiTypeButton('questions')
+        this.AiTypeButton('transcription')
+        this.AiTypeButton('ocr')
+        this.AiTypeButton('tags')
+      }
+      TextArea({ text: this.aiDraftContent, placeholder: `录入${this.aiOutputTypeLabel(this.aiDraftType)}结果，原始想法不会被覆盖` })
+        .height(90)
+        .onChange((value: string) => this.aiDraftContent = value)
+      Row({ space: 8 }) {
+        Button(`保存${this.aiOutputTypeLabel(this.aiDraftType)}`)
           .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled(this.aiSummaryDraft.trim().length > 0)
+          .enabled(this.aiDraftContent.trim().length > 0)
           .onClick(async () => {
-            await this.saveAiSummaryDraft();
+            await this.saveAiDraft();
           })
         Button('刷新结果')
           .buttonStyle(ButtonStyleMode.NORMAL)
@@ -448,19 +457,32 @@ struct Detail {
     this.aiOutputs = await ideaRepository.listAiOutputs(this.ideaId);
   }
 
-  private async saveAiSummaryDraft(): Promise<void> {
-    const content = this.aiSummaryDraft.trim();
+  @Builder
+  private AiTypeButton(type: string) {
+    Button(`${this.aiOutputTypeLabel(type)} ${this.aiOutputCount(type)}`)
+      .buttonStyle(ButtonStyleMode.NORMAL)
+      .backgroundColor(this.aiDraftType === type ? '#E0F2EE' : '#FFFFFF')
+      .fontColor(this.aiDraftType === type ? '#0B4F47' : '#697386')
+      .onClick(() => this.aiDraftType = type)
+  }
+
+  private aiOutputCount(type: string): number {
+    return this.aiOutputs.filter((output: IdeaAiOutput) => output.outputType === type).length;
+  }
+
+  private async saveAiDraft(): Promise<void> {
+    const content = this.aiDraftContent.trim();
     if (content.length === 0) {
       return;
     }
     try {
-      await ideaRepository.saveAiOutput(this.ideaId, 'summary', content, [this.ideaId]);
-      this.aiSummaryDraft = '';
-      this.aiStatusMessage = 'AI 摘要已保存';
+      await ideaRepository.saveAiOutput(this.ideaId, this.aiDraftType, content, [this.ideaId]);
+      this.aiDraftContent = '';
+      this.aiStatusMessage = `${this.aiOutputTypeLabel(this.aiDraftType)}已保存`;
       await this.reloadAiOutputs();
       await this.reload();
     } catch (err) {
-      this.aiStatusMessage = `保存 AI 摘要失败：${String(err)}`;
+      this.aiStatusMessage = `保存${this.aiOutputTypeLabel(this.aiDraftType)}失败：${String(err)}`;
     }
   }
 
@@ -487,6 +509,9 @@ struct Detail {
     }
     if (type === 'action_items') {
       return '行动项';
+    }
+    if (type === 'questions') {
+      return '问题';
     }
     if (type === 'tags') {
       return '自动标签';

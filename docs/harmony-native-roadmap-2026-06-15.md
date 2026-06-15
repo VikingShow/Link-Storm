@@ -26,6 +26,7 @@ Date: 2026-06-15
 - Audio recording, playback, and floating-ball service errors now surface localized Chinese messages
 - Screenshot fallback and handwriting preview saves now guard cleanup failures
 - Audio playback start and file-handle cleanup now have explicit error guards
+- Handwriting preview save failures now surface directly in the capture panel
 
 ## Verified milestone
 
@@ -99,6 +100,10 @@ feat(harmony): guard capture preview cleanup
 
 ```text
 feat(harmony): guard audio playback start
+```
+
+```text
+feat(harmony): report handwriting preview failures
 ```
 
 Verification:

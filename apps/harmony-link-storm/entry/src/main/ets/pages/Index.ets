@@ -447,7 +447,11 @@ struct Index {
             .buttonStyle(ButtonStyleMode.NORMAL)
             .enabled(this.handwritingStrokes.length > 0)
             .onClick(async () => {
-              await this.persistHandwritingPreview();
+              try {
+                await this.persistHandwritingPreview();
+              } catch {
+                // persistHandwritingPreview already updates handwritingText with the failure.
+              }
             })
         }
 
@@ -1259,13 +1263,18 @@ struct Index {
 
   private async persistHandwritingPreview(): Promise<void> {
     const previousPreviewPath = this.handwritingPreviewPath;
-    const previewPath = await this.saveHandwritingPreview();
-    this.handwritingPreviewPath = previewPath;
-    this.handwritingText = `手写预览：${previewPath}`;
-    if (previousPreviewPath.length > 0 && previousPreviewPath !== previewPath) {
-      this.removeManagedHandwritingPreview(previousPreviewPath);
+    try {
+      const previewPath = await this.saveHandwritingPreview();
+      this.handwritingPreviewPath = previewPath;
+      this.handwritingText = `手写预览：${previewPath}`;
+      if (previousPreviewPath.length > 0 && previousPreviewPath !== previewPath) {
+        this.removeManagedHandwritingPreview(previousPreviewPath);
+      }
+      void this.persistCaptureDraft();
+    } catch (err) {
+      this.handwritingText = `手写预览保存失败：${String(err)}`;
+      throw err as Error;
     }
-    void this.persistCaptureDraft();
   }
 
   private async saveHandwritingPreview(): Promise<string> {

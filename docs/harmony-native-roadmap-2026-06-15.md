@@ -50,6 +50,7 @@ Date: 2026-06-15
 - AI organization results now have a native RDB table, import/export support, and editable detail-page placeholders that do not overwrite original ideas
 - Detail page now exports the current attachment, handwriting preview PNG, and handwriting strokes JSON through the native document picker
 - JSON and ZIP imports now replace ideas, folders, tags, and AI outputs inside one RDB transaction, with failed ZIP imports cleaning newly copied managed attachments
+- Home backup export can now immediately share the generated ZIP package through the native ShareKit panel
 
 ## Verified milestone
 
@@ -219,6 +220,10 @@ feat(harmony): export detail attachments
 
 ```text
 feat(harmony): transaction-safe import payloads
+```
+
+```text
+feat(harmony): share backup zip packages
 ```
 
 Verification:

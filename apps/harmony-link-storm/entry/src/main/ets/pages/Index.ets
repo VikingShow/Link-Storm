@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
+import fileUri from '@ohos.file.fileuri';
 import { systemShare } from '@kit.ShareKit';
 import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
@@ -268,6 +269,17 @@ struct Index {
               this.exportStatus = `ZIP备份已生成：${archivePath}`;
             } catch (err) {
               this.exportStatus = `ZIP备份失败：${String(err)}`;
+            }
+          })
+        Button('分享ZIP')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              const archivePath = await ideaRepository.exportBackupZip();
+              await this.shareBackupArchive(archivePath);
+              this.exportStatus = `ZIP备份已打开分享面板：${archivePath}`;
+            } catch (err) {
+              this.exportStatus = `ZIP备份分享失败：${String(err)}`;
             }
           })
         Button('ZIP导入')
@@ -1282,6 +1294,22 @@ struct Index {
   private async shareIdeasAsMarkdown(): Promise<void> {
     const items = this.shareTargetIdeas();
     await this.shareTextContent(this.buildMarkdownExport(items), 'Link Storm Markdown', `Markdown 导出 ${items.length} 条本地想法`);
+  }
+
+  private async shareBackupArchive(path: string): Promise<void> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const shareData = new systemShare.SharedData({
+      utd: utd.UniformDataType.ZIP_ARCHIVE,
+      uri: fileUri.getUriFromPath(path),
+      title: 'Link Storm ZIP 备份',
+      description: 'Link Storm 本地想法备份包'
+    });
+    const controller = new systemShare.ShareController(shareData);
+    const options: ShareOptions = {
+      previewMode: systemShare.SharePreviewMode.DEFAULT,
+      selectionMode: systemShare.SelectionMode.SINGLE
+    };
+    await this.showSharePanelGuarded(controller, context, options);
   }
 
   private async exportIdeasAsPlainTextFile(): Promise<string> {

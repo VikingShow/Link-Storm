@@ -942,6 +942,13 @@ struct Index {
             await ideaRepository.delete(idea.id);
             await this.reloadIdeas();
           })
+        Button('仅删记录')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .fontColor('#B54708')
+          .onClick(async () => {
+            await ideaRepository.delete(idea.id, false);
+            await this.reloadIdeas();
+          })
       }
     }
     .alignItems(HorizontalAlign.Start)

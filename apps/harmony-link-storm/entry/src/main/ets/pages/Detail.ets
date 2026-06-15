@@ -238,6 +238,13 @@ struct Detail {
               await ideaRepository.delete(this.ideaId);
               this.backToList();
             })
+          Button('仅删记录')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .fontColor('#B54708')
+            .onClick(async () => {
+              await ideaRepository.delete(this.ideaId, false);
+              this.backToList();
+            })
         }
 
         Text(this.status)

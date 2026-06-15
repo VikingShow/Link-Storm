@@ -53,6 +53,7 @@ Date: 2026-06-15
 - Home backup export can now immediately share the generated ZIP package through the native ShareKit panel
 - Home search now also covers folder names, manual context notes, and saved AI organization output content
 - ZIP backup manifests now include source device metadata, and ZIP import shows package counts and source device before applying the import
+- Home and detail deletion now let users remove only the record or remove the record together with managed local attachments
 
 ## Verified milestone
 
@@ -234,6 +235,10 @@ feat(harmony): search ai outputs and folders
 
 ```text
 feat(harmony): preview backup zip imports
+```
+
+```text
+feat(harmony): choose attachment cleanup on delete
 ```
 
 Verification:

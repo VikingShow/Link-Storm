@@ -458,11 +458,13 @@ export class IdeaRepository {
     this.clearLegacyCaptureDraft();
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, deleteManagedAssets: boolean = true): Promise<void> {
     const current = await this.getById(id);
     await this.deleteRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '删除想法失败');
     await this.deleteRowsGuarded(new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE).equalTo('ideaId', id), '删除想法 AI 结果失败');
-    this.cleanupManagedIdeaAssetFiles(current?.asset);
+    if (deleteManagedAssets) {
+      this.cleanupManagedIdeaAssetFiles(current?.asset);
+    }
   }
 
   async getById(id: string): Promise<Idea | undefined> {

@@ -34,6 +34,7 @@ Date: 2026-06-15
 - Repository initialization failures now surface as localized startup status feedback
 - Page navigation now uses `UIContext.Router` instead of deprecated global router calls
 - Document capture now auto-saves body edits into the native capture draft and shows word/line stats
+- Repository import, backup, attachment copy, and RDB cursor reads now use localized guarded helpers
 
 ## Verified milestone
 
@@ -139,6 +140,10 @@ feat(harmony): migrate page navigation to ui context router
 
 ```text
 feat(harmony): autosave document capture body
+```
+
+```text
+feat(harmony): guard repository file operations
 ```
 
 Verification:

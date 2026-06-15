@@ -324,7 +324,7 @@ export class IdeaRepository {
     const predicates = this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID);
     const existing = await this.queryRowsGuarded(predicates, '读取捕捉草稿失败');
     try {
-      if (existing.goToFirstRow()) {
+      if (this.goToFirstRow(existing)) {
         await this.updateRowsGuarded(this.captureDraftToBucket(record), predicates, '更新捕捉草稿失败');
       } else {
         await this.insertRowGuarded(CAPTURE_DRAFT_TABLE, this.captureDraftToBucket(record), '保存捕捉草稿失败');
@@ -337,8 +337,8 @@ export class IdeaRepository {
   async loadCaptureDraft(): Promise<CaptureDraftState | undefined> {
     const resultSet = await this.queryRowsGuarded(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID), '读取捕捉草稿失败');
     try {
-      if (resultSet.goToFirstRow()) {
-        return this.parseCaptureDraft(resultSet.getString(resultSet.getColumnIndex('payload')));
+      if (this.goToFirstRow(resultSet)) {
+        return this.parseCaptureDraft(this.readString(resultSet, 'payload'));
       }
     } finally {
       this.closeResultSet(resultSet);
@@ -429,9 +429,7 @@ export class IdeaRepository {
         attachments: await this.collectBackupAttachments(await this.list(), attachmentsDir)
       };
       this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
-      await zlib.compressFile(payloadDir, archivePath, {
-        level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
-      });
+      await this.compressDirectoryGuarded(payloadDir, archivePath);
       return archivePath;
     } finally {
       this.cleanupBackupTemp(tempRoot);
@@ -445,7 +443,7 @@ export class IdeaRepository {
     if (uris.length === 0) {
       throw new Error('已取消导入');
     }
-    return this.importJson(fileIo.readTextSync(this.resolveFilePath(uris[0])), strategy);
+    return this.importJson(this.readTextFileGuarded(this.resolveFilePath(uris[0]), '读取导入文件失败'), strategy);
   }
 
   async importBackupZip(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -461,7 +459,7 @@ export class IdeaRepository {
     this.ensureDirectory(tempRoot);
     this.ensureDirectory(extractDir);
     try {
-      await zlib.decompressFile(zipPath, extractDir);
+      await this.decompressArchiveGuarded(zipPath, extractDir);
       const manifest = this.readBackupManifest(extractDir);
       const parsed = JSON.parse(manifest) as IdeaBackupPayload;
       if (parsed.schema !== BACKUP_SCHEMA) {
@@ -554,7 +552,11 @@ export class IdeaRepository {
     this.ensureDirectory(attachmentsDir);
     const safeKind = this.safeName(kind || 'asset');
     const targetPath = `${attachmentsDir}/${ideaId}-${safeKind}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
-    fileIo.copyFileSync(sourcePath, targetPath);
+    try {
+      fileIo.copyFileSync(sourcePath, targetPath);
+    } catch (err) {
+      throw new Error(`复制附件失败：${String(err)}`);
+    }
     return targetPath;
   }
 
@@ -722,7 +724,7 @@ export class IdeaRepository {
 
   private readIdeas(resultSet: relationalStore.ResultSet): Idea[] {
     const items: Idea[] = [];
-    while (resultSet.goToNextRow()) {
+    while (this.goToNextRow(resultSet)) {
       try {
         items.push(this.rowToIdea(resultSet));
       } catch {
@@ -734,7 +736,7 @@ export class IdeaRepository {
 
   private readFolders(resultSet: relationalStore.ResultSet): IdeaFolder[] {
     const items: IdeaFolder[] = [];
-    while (resultSet.goToNextRow()) {
+    while (this.goToNextRow(resultSet)) {
       try {
         items.push(this.rowToFolder(resultSet));
       } catch {
@@ -746,7 +748,7 @@ export class IdeaRepository {
 
   private readTags(resultSet: relationalStore.ResultSet): IdeaTag[] {
     const items: IdeaTag[] = [];
-    while (resultSet.goToNextRow()) {
+    while (this.goToNextRow(resultSet)) {
       try {
         items.push(this.rowToTag(resultSet));
       } catch {
@@ -927,11 +929,11 @@ export class IdeaRepository {
   }
 
   private readString(resultSet: relationalStore.ResultSet, columnName: string, fallback: string = ''): string {
-    const idx = resultSet.getColumnIndex(columnName);
-    if (idx < 0) {
-      return fallback;
-    }
     try {
+      const idx = resultSet.getColumnIndex(columnName);
+      if (idx < 0) {
+        return fallback;
+      }
       const value = resultSet.getString(idx);
       return value ?? fallback;
     } catch {
@@ -940,11 +942,11 @@ export class IdeaRepository {
   }
 
   private readLong(resultSet: relationalStore.ResultSet, columnName: string, fallback: number = 0): number {
-    const idx = resultSet.getColumnIndex(columnName);
-    if (idx < 0) {
-      return fallback;
-    }
     try {
+      const idx = resultSet.getColumnIndex(columnName);
+      if (idx < 0) {
+        return fallback;
+      }
       return resultSet.getLong(idx);
     } catch {
       return fallback;
@@ -1000,6 +1002,48 @@ export class IdeaRepository {
       resultSet.close();
     } catch {
       // Ignore close failures after query results have been consumed.
+    }
+  }
+
+  private goToFirstRow(resultSet: relationalStore.ResultSet): boolean {
+    try {
+      return resultSet.goToFirstRow();
+    } catch {
+      return false;
+    }
+  }
+
+  private goToNextRow(resultSet: relationalStore.ResultSet): boolean {
+    try {
+      return resultSet.goToNextRow();
+    } catch {
+      return false;
+    }
+  }
+
+  private readTextFileGuarded(path: string, message: string): string {
+    try {
+      return fileIo.readTextSync(path);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async decompressArchiveGuarded(zipPath: string, extractDir: string): Promise<void> {
+    try {
+      await zlib.decompressFile(zipPath, extractDir);
+    } catch (err) {
+      throw new Error(`解压备份失败：${String(err)}`);
+    }
+  }
+
+  private async compressDirectoryGuarded(payloadDir: string, archivePath: string): Promise<void> {
+    try {
+      await zlib.compressFile(payloadDir, archivePath, {
+        level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
+      });
+    } catch (err) {
+      throw new Error(`压缩备份失败：${String(err)}`);
     }
   }
 
@@ -1198,11 +1242,11 @@ export class IdeaRepository {
   private readBackupManifest(extractDir: string): string {
     const rootManifest = `${extractDir}/manifest.json`;
     if (this.fileExists(rootManifest)) {
-      return fileIo.readTextSync(rootManifest);
+      return this.readTextFileGuarded(rootManifest, '读取备份清单失败');
     }
     const nestedManifest = `${extractDir}/payload/manifest.json`;
     if (this.fileExists(nestedManifest)) {
-      return fileIo.readTextSync(nestedManifest);
+      return this.readTextFileGuarded(nestedManifest, '读取备份清单失败');
     }
     throw new Error('Backup manifest not found');
   }
@@ -1282,15 +1326,19 @@ export class IdeaRepository {
   }
 
   private writeTextFile(path: string, text: string): void {
-    const file = fileIo.openSync(path, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
     try {
-      fileIo.writeSync(file.fd, text, { encoding: 'utf-8' });
-    } finally {
+      const file = fileIo.openSync(path, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
       try {
-        fileIo.closeSync(file);
-      } catch {
-        // Ignore close failures after the write attempt has completed.
+        fileIo.writeSync(file.fd, text, { encoding: 'utf-8' });
+      } finally {
+        try {
+          fileIo.closeSync(file);
+        } catch {
+          // Ignore close failures after the write attempt has completed.
+        }
       }
+    } catch (err) {
+      throw new Error(`写入文本文件失败：${String(err)}`);
     }
   }
 

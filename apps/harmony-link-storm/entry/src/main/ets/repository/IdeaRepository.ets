@@ -51,7 +51,7 @@ export class IdeaRepository {
   }
 
   async list(): Promise<Idea[]> {
-    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(IDEAS_TABLE));
+    const resultSet = await this.queryRowsGuarded(new relationalStore.RdbPredicates(IDEAS_TABLE), '读取想法列表失败');
     try {
       return this.readIdeas(resultSet);
     } finally {
@@ -60,7 +60,7 @@ export class IdeaRepository {
   }
 
   async listFolders(): Promise<IdeaFolder[]> {
-    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(FOLDERS_TABLE));
+    const resultSet = await this.queryRowsGuarded(new relationalStore.RdbPredicates(FOLDERS_TABLE), '读取文件夹列表失败');
     try {
       return this.readFolders(resultSet);
     } finally {
@@ -69,7 +69,7 @@ export class IdeaRepository {
   }
 
   async listTags(): Promise<IdeaTag[]> {
-    const resultSet = await this.ensureStore().query(new relationalStore.RdbPredicates(TAGS_TABLE));
+    const resultSet = await this.queryRowsGuarded(new relationalStore.RdbPredicates(TAGS_TABLE), '读取标签列表失败');
     try {
       return this.readTags(resultSet);
     } finally {
@@ -357,7 +357,7 @@ export class IdeaRepository {
   }
 
   async getById(id: string): Promise<Idea | undefined> {
-    const resultSet = await this.ensureStore().query(this.predicatesFor(IDEAS_TABLE, id));
+    const resultSet = await this.queryRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '读取想法详情失败');
     try {
       const ideas = this.readIdeas(resultSet);
       return ideas.length > 0 ? ideas[0] : undefined;
@@ -968,7 +968,7 @@ export class IdeaRepository {
   }
 
   private async getFolderById(id: string): Promise<IdeaFolder | undefined> {
-    const resultSet = await this.ensureStore().query(this.predicatesFor(FOLDERS_TABLE, id));
+    const resultSet = await this.queryRowsGuarded(this.predicatesFor(FOLDERS_TABLE, id), '读取文件夹详情失败');
     try {
       const items = this.readFolders(resultSet);
       return items.length > 0 ? items[0] : undefined;
@@ -978,7 +978,7 @@ export class IdeaRepository {
   }
 
   private async getTagById(id: string): Promise<IdeaTag | undefined> {
-    const resultSet = await this.ensureStore().query(this.predicatesFor(TAGS_TABLE, id));
+    const resultSet = await this.queryRowsGuarded(this.predicatesFor(TAGS_TABLE, id), '读取标签详情失败');
     try {
       const items = this.readTags(resultSet);
       return items.length > 0 ? items[0] : undefined;
@@ -1018,6 +1018,14 @@ export class IdeaRepository {
   private async insertRowGuarded(table: string, bucket: ValuesBucket, message: string): Promise<void> {
     try {
       await this.ensureStore().insert(table, bucket);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async queryRowsGuarded(predicates: relationalStore.RdbPredicates, message: string): Promise<relationalStore.ResultSet> {
+    try {
+      return await this.ensureStore().query(predicates);
     } catch (err) {
       throw new Error(`${message}：${String(err)}`);
     }

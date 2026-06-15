@@ -316,14 +316,13 @@ export class IdeaRepository {
       payload: JSON.stringify(draft),
       savedAt: draft.savedAt || new Date().toISOString()
     };
-    const store = this.ensureStore();
     const predicates = this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID);
-    const existing = await store.query(predicates);
+    const existing = await this.queryRowsGuarded(predicates, '读取捕捉草稿失败');
     try {
       if (existing.goToFirstRow()) {
-        await store.update(this.captureDraftToBucket(record), predicates);
+        await this.updateRowsGuarded(this.captureDraftToBucket(record), predicates, '更新捕捉草稿失败');
       } else {
-        await store.insert(CAPTURE_DRAFT_TABLE, this.captureDraftToBucket(record));
+        await this.insertRowGuarded(CAPTURE_DRAFT_TABLE, this.captureDraftToBucket(record), '保存捕捉草稿失败');
       }
     } finally {
       this.closeResultSet(existing);
@@ -331,7 +330,7 @@ export class IdeaRepository {
   }
 
   async loadCaptureDraft(): Promise<CaptureDraftState | undefined> {
-    const resultSet = await this.ensureStore().query(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID));
+    const resultSet = await this.queryRowsGuarded(this.predicatesFor(CAPTURE_DRAFT_TABLE, CAPTURE_DRAFT_ID), '读取捕捉草稿失败');
     try {
       if (resultSet.goToFirstRow()) {
         return this.parseCaptureDraft(resultSet.getString(resultSet.getColumnIndex('payload')));

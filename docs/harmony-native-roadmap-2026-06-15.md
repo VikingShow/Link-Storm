@@ -20,6 +20,7 @@ Date: 2026-06-15
 - DevEco CLI produces `entry-default-unsigned.hap`; project signing remains intentionally unconfigured
 - Repository row parsing now uses explicit fallbacks for malformed RDB rows
 - Detail and handwriting capture controls now use readable Chinese labels instead of mojibake placeholders
+- Detail placeholders and floating-ball status feedback now use readable Chinese copy
 
 ## Verified milestone
 
@@ -71,6 +72,10 @@ feat(harmony): guard repository row parsing
 fix(harmony): polish visible capture labels
 ```
 
+```text
+fix(harmony): localize detail status feedback
+```
+
 Verification:
 
 ```text
@@ -98,7 +103,7 @@ BUILD SUCCESSFUL
 ## Next milestones
 
 1. Prepare real signing profile inputs for physical-device installation
-2. Continue cleaning remaining visible text and status feedback
+2. Continue scanning for remaining visible text and status feedback gaps
 3. Continue splitting remaining draft/file helpers from the main RDB path
 4. Validate audio capture and playback on a physical HarmonyOS device
 5. Revisit remaining SDK compatibility warnings after feature parity improves

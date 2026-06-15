@@ -54,7 +54,7 @@ struct Detail {
           Text('想法详情')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-          Text(this.idea ? ideaTypeLabel(this.idea.type) : 'Loading')
+          Text(this.idea ? ideaTypeLabel(this.idea.type) : '加载中')
             .fontSize(12)
             .fontColor('#667085')
         }
@@ -194,7 +194,7 @@ struct Detail {
               await this.refreshFolders();
             })
         } else {
-          TextInput({ text: this.folderId, placeholder: 'folder id' })
+          TextInput({ text: this.folderId, placeholder: '文件夹 ID' })
             .onChange((value: string) => this.folderId = value)
           Button('刷新文件夹')
             .buttonStyle(ButtonStyleMode.NORMAL)
@@ -202,10 +202,10 @@ struct Detail {
               await this.refreshFolders();
             })
         }
-        TextArea({ text: this.plainText, placeholder: 'plain text' })
+        TextArea({ text: this.plainText, placeholder: '正文' })
           .height(160)
           .onChange((value: string) => this.plainText = value)
-        TextArea({ text: this.note, placeholder: 'note' })
+        TextArea({ text: this.note, placeholder: '备注' })
           .height(120)
           .onChange((value: string) => this.note = value)
 
@@ -248,7 +248,7 @@ struct Detail {
                 },
                 asset: this.buildAssetPatch()
               });
-              this.status = 'saved';
+              this.status = '已保存';
               await this.reload();
             })
           Button('删除')
@@ -264,7 +264,7 @@ struct Detail {
           .fontColor('#667085')
           .fontSize(12)
       } else {
-        Text(this.status || 'record not found')
+        Text(this.status || '记录不存在')
       }
     }
     .padding(20)
@@ -280,7 +280,7 @@ struct Detail {
     }
     const loaded = await ideaRepository.getById(this.ideaId);
     if (!loaded) {
-      this.status = 'record not found';
+      this.status = '记录不存在';
       this.idea = undefined;
       return;
     }

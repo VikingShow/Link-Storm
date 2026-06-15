@@ -59,7 +59,7 @@ struct Index {
   @State private importStrategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER;
   @State private exportStatus: string = '';
   @State private screenshotStatus: string = '';
-  @State private floatingBallStatus: string = 'floating ball disabled';
+  @State private floatingBallStatus: string = '悬浮球已关闭';
   @State private handwritingStrokes: HandwritingStroke[] = [];
   @State private currentStrokePoints: StrokePoint[] = [];
   @State private folders: IdeaFolder[] = [];
@@ -199,7 +199,7 @@ struct Index {
           .onClick(() => this.importStrategy = ImportConflictStrategy.FORCE_OVERWRITE)
       }
       Row({ space: 8 }) {
-        Button(this.floatingBallEnabled() ? 'Disable floating ball' : 'Enable floating ball')
+        Button(this.floatingBallEnabled() ? '关闭悬浮球' : '启用悬浮球')
           .buttonStyle(ButtonStyleMode.NORMAL)
           .backgroundColor(this.floatingBallEnabled() ? '#136F63' : '#FFFFFF')
           .fontColor(this.floatingBallEnabled() ? '#FFFFFF' : '#697386')
@@ -207,13 +207,13 @@ struct Index {
             try {
               if (floatingBallService.isEnabled()) {
                 await floatingBallService.disable();
-                this.floatingBallStatus = 'floating ball disabled';
+                this.floatingBallStatus = '悬浮球已关闭';
               } else {
                 const bundleName = await floatingBallService.enable();
-                this.floatingBallStatus = `floating ball enabled: ${bundleName}`;
+                this.floatingBallStatus = `悬浮球已启用：${bundleName}`;
               }
             } catch (err) {
-              this.floatingBallStatus = `floating ball unavailable: ${String(err)}`;
+              this.floatingBallStatus = `悬浮球不可用：${String(err)}`;
             }
           })
         Text(this.floatingBallStatus)

@@ -27,6 +27,7 @@ Date: 2026-06-15
 - Screenshot fallback and handwriting preview saves now guard cleanup failures
 - Audio playback start and file-handle cleanup now have explicit error guards
 - Handwriting preview save failures now surface directly in the capture panel
+- Repository schema setup and import table replacement now use localized guarded RDB helpers
 
 ## Verified milestone
 
@@ -104,6 +105,10 @@ feat(harmony): guard audio playback start
 
 ```text
 feat(harmony): report handwriting preview failures
+```
+
+```text
+feat(harmony): guard repository schema writes
 ```
 
 Verification:

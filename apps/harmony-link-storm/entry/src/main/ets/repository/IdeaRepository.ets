@@ -555,7 +555,7 @@ export class IdeaRepository {
   }
 
   private async ensureSchema(): Promise<void> {
-    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${IDEAS_TABLE} (
+    await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${IDEAS_TABLE} (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -574,26 +574,26 @@ export class IdeaRepository {
       aiStatus TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
-    )`);
-    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${FOLDERS_TABLE} (
+    )`, '初始化想法表失败');
+    await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${FOLDERS_TABLE} (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
-    )`);
-    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${TAGS_TABLE} (
+    )`, '初始化文件夹表失败');
+    await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${TAGS_TABLE} (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
-    )`);
-    await this.ensureStore().executeSql(`CREATE TABLE IF NOT EXISTS ${CAPTURE_DRAFT_TABLE} (
+    )`, '初始化标签表失败');
+    await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${CAPTURE_DRAFT_TABLE} (
       id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
       savedAt TEXT NOT NULL
-    )`);
+    )`, '初始化捕捉草稿表失败');
   }
 
   private async importPayloadIdeas(incoming: Idea[], strategy: ImportConflictStrategy): Promise<ImportResult> {
@@ -609,23 +609,23 @@ export class IdeaRepository {
   }
 
   private async replaceIdeas(items: Idea[]): Promise<void> {
-    await this.ensureStore().delete(new relationalStore.RdbPredicates(IDEAS_TABLE));
+    await this.deleteTableRowsGuarded(IDEAS_TABLE, '清空想法表失败');
     for (const item of items) {
-      await this.ensureStore().insert(IDEAS_TABLE, this.ideaToBucket(item));
+      await this.insertRowGuarded(IDEAS_TABLE, this.ideaToBucket(item), '写入想法数据失败');
     }
   }
 
   private async replaceFolders(items: IdeaFolder[]): Promise<void> {
-    await this.ensureStore().delete(new relationalStore.RdbPredicates(FOLDERS_TABLE));
+    await this.deleteTableRowsGuarded(FOLDERS_TABLE, '清空文件夹表失败');
     for (const item of items) {
-      await this.ensureStore().insert(FOLDERS_TABLE, this.folderToBucket(item));
+      await this.insertRowGuarded(FOLDERS_TABLE, this.folderToBucket(item), '写入文件夹数据失败');
     }
   }
 
   private async replaceTags(items: IdeaTag[]): Promise<void> {
-    await this.ensureStore().delete(new relationalStore.RdbPredicates(TAGS_TABLE));
+    await this.deleteTableRowsGuarded(TAGS_TABLE, '清空标签表失败');
     for (const item of items) {
-      await this.ensureStore().insert(TAGS_TABLE, this.tagToBucket(item));
+      await this.insertRowGuarded(TAGS_TABLE, this.tagToBucket(item), '写入标签数据失败');
     }
   }
 
@@ -996,6 +996,30 @@ export class IdeaRepository {
       resultSet.close();
     } catch {
       // Ignore close failures after query results have been consumed.
+    }
+  }
+
+  private async executeSqlGuarded(sql: string, message: string): Promise<void> {
+    try {
+      await this.ensureStore().executeSql(sql);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async deleteTableRowsGuarded(table: string, message: string): Promise<void> {
+    try {
+      await this.ensureStore().delete(new relationalStore.RdbPredicates(table));
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async insertRowGuarded(table: string, bucket: ValuesBucket, message: string): Promise<void> {
+    try {
+      await this.ensureStore().insert(table, bucket);
+    } catch (err) {
+      throw new Error(`${message}：${String(err)}`);
     }
   }
 

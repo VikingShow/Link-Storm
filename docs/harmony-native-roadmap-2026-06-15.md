@@ -58,6 +58,7 @@ Date: 2026-06-15
 - ZIP backup export now records attachment SHA-256 hashes, and ZIP import reuses matching managed attachments instead of duplicating files
 - Folder management now supports two-level folders with parent-aware capture, filtering, batch move, detail editing, import, and export
 - Detail AI preparation now supports separate editable result types for summary, action items, questions, transcription, OCR, and auto tags
+- Conservative imports now mark skipped same-ID records as sync conflicts and show sync status on home cards and detail pages
 
 ## Verified milestone
 
@@ -259,6 +260,10 @@ feat(harmony): support nested folders
 
 ```text
 feat(harmony): edit typed ai preparation outputs
+```
+
+```text
+feat(harmony): surface import conflict status
 ```
 
 Verification:

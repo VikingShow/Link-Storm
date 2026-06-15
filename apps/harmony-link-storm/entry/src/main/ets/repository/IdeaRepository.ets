@@ -1638,16 +1638,17 @@ export class IdeaRepository {
       }
       const current = map.get(idea.id);
       if (!current) {
-        map.set(idea.id, idea);
+        map.set(idea.id, this.copyIdeaWithSyncStatus(idea, 'pending_sync'));
         inserted++;
         continue;
       }
       const incomingNewer = Date.parse(idea.updatedAt) > Date.parse(current.updatedAt);
       const shouldOverwrite = strategy === ImportConflictStrategy.FORCE_OVERWRITE || incomingNewer;
       if (shouldOverwrite) {
-        map.set(idea.id, idea);
+        map.set(idea.id, this.copyIdeaWithSyncStatus(idea, 'pending_sync'));
         updated++;
       } else {
+        map.set(current.id, this.copyIdeaWithSyncStatus(current, 'conflict'));
         conflicts.push(idea.id);
         skipped++;
       }
@@ -1659,6 +1660,26 @@ export class IdeaRepository {
       skipped,
       conflicts,
       items: Array.from(map.values()).sort((a: Idea, b: Idea) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    };
+  }
+
+  private copyIdeaWithSyncStatus(idea: Idea, syncStatus: string): Idea {
+    return {
+      id: idea.id,
+      title: idea.title,
+      type: idea.type,
+      plainText: idea.plainText,
+      note: idea.note,
+      tags: idea.tags,
+      folderId: idea.folderId,
+      context: idea.context,
+      asset: idea.asset,
+      isFavorite: idea.isFavorite,
+      isArchived: idea.isArchived,
+      syncStatus,
+      aiStatus: idea.aiStatus,
+      createdAt: idea.createdAt,
+      updatedAt: idea.updatedAt
     };
   }
 

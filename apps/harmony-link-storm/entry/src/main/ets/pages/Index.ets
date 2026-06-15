@@ -929,6 +929,15 @@ struct Index {
         }
       }
 
+      Row({ space: 6 }) {
+        Text(this.syncStatusLabel(idea.syncStatus))
+          .fontSize(11)
+          .fontColor(idea.syncStatus === 'conflict' ? '#B42318' : '#0B4F47')
+          .backgroundColor(idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
+          .borderRadius(10)
+          .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+      }
+
       Row({ space: 8 }) {
         Button('打开')
           .buttonStyle(ButtonStyleMode.NORMAL)
@@ -1259,6 +1268,19 @@ struct Index {
     }
     const parent = this.folders.find((item: IdeaFolder) => item.id === folder.parentId);
     return parent ? `${parent.name} / ${folder.name}` : folder.name;
+  }
+
+  private syncStatusLabel(status: string): string {
+    if (status === 'pending_sync') {
+      return '待同步';
+    }
+    if (status === 'synced') {
+      return '已同步';
+    }
+    if (status === 'conflict') {
+      return '导入冲突';
+    }
+    return '仅本机';
   }
 
   private hasActiveFilters(): boolean {

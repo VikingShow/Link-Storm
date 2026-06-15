@@ -60,6 +60,14 @@ struct Detail {
           Text(this.idea ? ideaTypeLabel(this.idea.type) : '加载中')
             .fontSize(12)
             .fontColor('#667085')
+          if (this.idea) {
+            Text(this.syncStatusLabel(this.idea.syncStatus))
+              .fontSize(11)
+              .fontColor(this.idea.syncStatus === 'conflict' ? '#B42318' : '#0B4F47')
+              .backgroundColor(this.idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
+              .borderRadius(10)
+              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+          }
         }
         Blank()
         Button('返回')
@@ -741,6 +749,19 @@ struct Detail {
     }
     const parent = this.folders.find((item: IdeaFolder) => item.id === folder.parentId);
     return parent ? `${parent.name} / ${folder.name}` : folder.name;
+  }
+
+  private syncStatusLabel(status: string): string {
+    if (status === 'pending_sync') {
+      return '待同步';
+    }
+    if (status === 'synced') {
+      return '已同步';
+    }
+    if (status === 'conflict') {
+      return '导入冲突';
+    }
+    return '仅本机';
   }
 
   private async refreshTags(): Promise<void> {

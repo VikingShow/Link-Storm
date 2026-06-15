@@ -1,4 +1,3 @@
-﻿import router from '@ohos.router';
 import Want from '@ohos.app.ability.Want';
 import { common } from '@kit.AbilityKit';
 import fileUri from '@ohos.file.fileuri';
@@ -34,7 +33,7 @@ struct Detail {
   @State private attachmentStatus: string = '';
 
   async aboutToAppear(): Promise<void> {
-    const params = router.getParams() as DetailParams;
+    const params = this.getUIContext().getRouter().getParams() as DetailParams;
     this.ideaId = params.id ?? '';
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     audioPlaybackService.setContext(context);
@@ -61,7 +60,7 @@ struct Detail {
         Blank()
         Button('返回')
           .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(() => router.back())
+          .onClick(() => this.backToList())
       }
       .width('100%')
 
@@ -256,7 +255,7 @@ struct Detail {
             .fontColor('#B42318')
             .onClick(async () => {
               await ideaRepository.delete(this.ideaId);
-              router.back();
+              this.backToList();
             })
         }
 
@@ -304,6 +303,14 @@ struct Detail {
 
   private getAsset(): IdeaAsset | undefined {
     return this.idea?.asset;
+  }
+
+  private backToList(): void {
+    try {
+      this.getUIContext().getRouter().back();
+    } catch (err) {
+      this.status = `返回失败：${String(err)}`;
+    }
   }
 
   private async openPreviewAttachment(): Promise<void> {

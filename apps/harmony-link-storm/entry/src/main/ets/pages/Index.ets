@@ -1,4 +1,3 @@
-import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import componentSnapshot from '@ohos.arkui.componentSnapshot';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
@@ -784,11 +783,15 @@ struct Index {
       Row({ space: 8 }) {
         Button('打开')
           .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(() => {
-            router.pushUrl({
-              url: 'pages/Detail',
-              params: { id: idea.id }
-            });
+          .onClick(async () => {
+            try {
+              await this.getUIContext().getRouter().pushUrl({
+                url: 'pages/Detail',
+                params: { id: idea.id }
+              });
+            } catch (err) {
+              this.exportStatus = `打开详情失败：${String(err)}`;
+            }
           })
         Button(idea.isFavorite ? '取消收藏' : '收藏')
           .buttonStyle(ButtonStyleMode.NORMAL)

@@ -32,6 +32,7 @@ Date: 2026-06-15
 - Repository idea, tag, and folder writes now use localized guarded RDB helpers
 - Capture draft RDB save and load paths now use localized guarded repository helpers
 - Repository initialization failures now surface as localized startup status feedback
+- Page navigation now uses `UIContext.Router` instead of deprecated global router calls
 
 ## Verified milestone
 
@@ -131,6 +132,10 @@ feat(harmony): guard capture draft rdb access
 feat(harmony): report repository init failures
 ```
 
+```text
+feat(harmony): migrate page navigation to ui context router
+```
+
 Verification:
 
 ```text
@@ -159,9 +164,10 @@ BUILD SUCCESSFUL
 
 1. Prepare real signing profile inputs for physical-device installation
 2. Continue scanning for remaining visible text and status feedback gaps on device
-3. Continue splitting remaining draft/file helpers from the main RDB path
-4. Validate audio capture and playback on a physical HarmonyOS device
-5. Revisit remaining SDK compatibility warnings after feature parity improves
+3. Continue reducing remaining native SDK compatibility warnings
+4. Continue splitting remaining draft/file helpers from the main RDB path
+5. Validate audio capture and playback on a physical HarmonyOS device
+6. Revisit screenshot and preview helper warnings after feature parity improves
 
 ## Git workflow
 

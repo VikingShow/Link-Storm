@@ -21,6 +21,7 @@ Date: 2026-06-15
 - Repository row parsing now uses explicit fallbacks for malformed RDB rows
 - Detail and handwriting capture controls now use readable Chinese labels instead of mojibake placeholders
 - Detail placeholders and floating-ball status feedback now use readable Chinese copy
+- Repository fallback titles and import/export errors now use localized Chinese messages
 
 ## Verified milestone
 
@@ -76,6 +77,10 @@ fix(harmony): polish visible capture labels
 fix(harmony): localize detail status feedback
 ```
 
+```text
+fix(harmony): localize repository fallback messages
+```
+
 Verification:
 
 ```text
@@ -103,7 +108,7 @@ BUILD SUCCESSFUL
 ## Next milestones
 
 1. Prepare real signing profile inputs for physical-device installation
-2. Continue scanning for remaining visible text and status feedback gaps
+2. Continue scanning for remaining visible text and status feedback gaps on device
 3. Continue splitting remaining draft/file helpers from the main RDB path
 4. Validate audio capture and playback on a physical HarmonyOS device
 5. Revisit remaining SDK compatibility warnings after feature parity improves

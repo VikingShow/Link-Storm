@@ -395,7 +395,7 @@ export class IdeaRepository {
       fileSuffixChoices: ['JSON|json']
     });
     if (uris.length === 0) {
-      throw new Error('Export cancelled');
+      throw new Error('已取消导出');
     }
     const target = uris[0];
     const path = this.resolveFilePath(target);
@@ -439,7 +439,7 @@ export class IdeaRepository {
     const pickerInstance = new picker.DocumentViewPicker(context);
     const uris = await pickerInstance.select();
     if (uris.length === 0) {
-      throw new Error('Import cancelled');
+      throw new Error('已取消导入');
     }
     return this.importJson(fileIo.readTextSync(this.resolveFilePath(uris[0])), strategy);
   }
@@ -449,7 +449,7 @@ export class IdeaRepository {
     const pickerInstance = new picker.DocumentViewPicker(context);
     const uris = await pickerInstance.select();
     if (uris.length === 0) {
-      throw new Error('Import cancelled');
+      throw new Error('已取消导入');
     }
     const zipPath = this.resolveFilePath(uris[0]);
     const tempRoot = `${context.cacheDir}/link-storm-import-${Date.now()}`;
@@ -461,7 +461,7 @@ export class IdeaRepository {
       const manifest = this.readBackupManifest(extractDir);
       const parsed = JSON.parse(manifest) as IdeaBackupPayload;
       if (parsed.schema !== BACKUP_SCHEMA) {
-        throw new Error('Invalid backup schema');
+        throw new Error('备份格式不正确');
       }
       const attachmentsDir = this.prepareImportAttachmentsDir();
       const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir);
@@ -484,13 +484,13 @@ export class IdeaRepository {
     try {
       parsed = JSON.parse(payload) as Partial<IdeaExportPayload>;
     } catch (err) {
-      throw new Error(`Invalid JSON payload: ${String(err)}`);
+      throw new Error(`JSON 内容不正确：${String(err)}`);
     }
     if (parsed.schema !== EXPORT_SCHEMA) {
-      throw new Error('Invalid export schema');
+      throw new Error('导出格式不正确');
     }
     if (!Array.isArray(parsed.ideas)) {
-      throw new Error('Invalid ideas payload');
+      throw new Error('想法数据不正确');
     }
     const merged = await this.importPayloadIdeas(parsed.ideas as Idea[], strategy);
     if (Array.isArray(parsed.folders)) {
@@ -519,7 +519,7 @@ export class IdeaRepository {
     }
     const current = await this.getById(ideaId);
     if (!current) {
-      throw new Error('Idea not found');
+      throw new Error('想法不存在');
     }
     const copiedPath = await this.copyAttachmentToIdeaStorage(pickedPath, ideaId, current.asset?.type || current.type);
     const nextAsset: IdeaAsset = {
@@ -538,7 +538,7 @@ export class IdeaRepository {
   async clearIdeaAsset(ideaId: string): Promise<void> {
     const current = await this.getById(ideaId);
     if (!current) {
-      throw new Error('Idea not found');
+      throw new Error('想法不存在');
     }
     await this.update(ideaId, { asset: undefined });
     this.cleanupManagedIdeaAssetFiles(current.asset);
@@ -756,7 +756,7 @@ export class IdeaRepository {
     const now = new Date().toISOString();
     return {
       id: this.readString(resultSet, 'id', this.createId()),
-      title: this.readString(resultSet, 'title', 'Untitled'),
+      title: this.readString(resultSet, 'title', '未命名想法'),
       type: this.readIdeaType(resultSet),
       plainText: this.readString(resultSet, 'plainText'),
       note: this.readString(resultSet, 'note'),
@@ -782,7 +782,7 @@ export class IdeaRepository {
     const now = new Date().toISOString();
     return {
       id: this.readString(resultSet, 'id', this.createId()),
-      name: this.readString(resultSet, 'name', 'Unnamed folder'),
+      name: this.readString(resultSet, 'name', '未命名文件夹'),
       color: this.readString(resultSet, 'color', '#136F63'),
       createdAt: this.readString(resultSet, 'createdAt', now),
       updatedAt: this.readString(resultSet, 'updatedAt', now)
@@ -793,7 +793,7 @@ export class IdeaRepository {
     const now = new Date().toISOString();
     return {
       id: this.readString(resultSet, 'id', this.createId()),
-      name: this.readString(resultSet, 'name', 'Unnamed tag'),
+      name: this.readString(resultSet, 'name', '未命名标签'),
       color: this.readString(resultSet, 'color', '#0B4F47'),
       createdAt: this.readString(resultSet, 'createdAt', now),
       updatedAt: this.readString(resultSet, 'updatedAt', now)
@@ -1001,14 +1001,14 @@ export class IdeaRepository {
 
   private ensureStore(): RdbStore {
     if (!this.store) {
-      throw new Error('IdeaRepository is not initialized');
+      throw new Error('想法仓库尚未初始化');
     }
     return this.store;
   }
 
   private ensureContext(): common.UIAbilityContext {
     if (!this.context) {
-      throw new Error('IdeaRepository is not initialized');
+      throw new Error('想法仓库尚未初始化');
     }
     return this.context;
   }

@@ -43,10 +43,10 @@ struct Index {
   @State private folderId: string = '';
   @State private note: string = '';
   @State private documentText: string = '';
-  @State private audioStatus: string = '录音能力预留，后续接入 AVRecorder';
+  @State private audioStatus: string = '录音已就绪，可开始采集';
   @State private audioPath: string = '';
   @State private audioDurationMs: number = 0;
-  @State private handwritingText: string = '手写能力预留，当前已接入 Canvas';
+  @State private handwritingText: string = '手写板已就绪，可直接书写';
   @State private handwritingPreviewPath: string = '';
   @State private search: string = '';
   @State private typeFilter: string = 'all';
@@ -882,11 +882,11 @@ struct Index {
     this.folderId = '';
     this.note = '';
     this.documentText = '';
-    this.audioStatus = '录音能力预留，后续接入 AVRecorder';
+    this.audioStatus = '录音已就绪，可开始采集';
     this.audioPath = '';
     this.audioDurationMs = 0;
     this.audioRecorderState = 'idle';
-    this.handwritingText = '手写能力预留，当前已接入 Canvas';
+    this.handwritingText = '手写板已就绪，可直接书写';
     this.clearHandwriting(preserveHandwritingPreview);
   }
 
@@ -1195,10 +1195,10 @@ struct Index {
 
   private previewText(idea: Idea): string {
     if (idea.type === IdeaType.AUDIO) {
-      return idea.asset?.localUri ? `语音文件：${idea.asset.localUri}` : '语音记录入口已预留，后续保存音频文件。';
+      return idea.asset?.localUri ? `语音文件：${idea.asset.localUri}` : '还没有录音文件。';
     }
     if (idea.type === IdeaType.HANDWRITING) {
-      return idea.asset?.strokes?.length ? `手写笔画 ${idea.asset.strokes.length} 组` : '手写记录入口已预留，后续保存笔迹和预览图。';
+      return idea.asset?.strokes?.length ? `手写笔画 ${idea.asset.strokes.length} 组` : '还没有手写笔迹或预览图。';
     }
     return idea.plainText || idea.note || '没有正文。';
   }

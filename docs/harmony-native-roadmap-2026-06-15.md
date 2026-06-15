@@ -22,6 +22,7 @@ Date: 2026-06-15
 - Detail and handwriting capture controls now use readable Chinese labels instead of mojibake placeholders
 - Detail placeholders and floating-ball status feedback now use readable Chinese copy
 - Repository fallback titles and import/export errors now use localized Chinese messages
+- Home-page audio and handwriting status text now reflects the implemented native capture flow
 
 ## Verified milestone
 
@@ -79,6 +80,10 @@ fix(harmony): localize detail status feedback
 
 ```text
 fix(harmony): localize repository fallback messages
+```
+
+```text
+fix(harmony): align home capture status copy
 ```
 
 Verification:

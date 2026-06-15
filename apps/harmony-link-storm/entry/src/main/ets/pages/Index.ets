@@ -435,15 +435,15 @@ struct Index {
           .fontColor('#697386')
 
         Row({ space: 8 }) {
-          Button('??')
+          Button('撤销')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .enabled(this.handwritingStrokes.length > 0)
             .onClick(() => this.undoHandwritingStroke())
-          Button('??')
+          Button('清空')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .enabled(this.handwritingStrokes.length > 0 || this.currentStrokePoints.length > 0)
             .onClick(() => this.clearHandwriting())
-          Button('????')
+          Button('保存预览')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .enabled(this.handwritingStrokes.length > 0)
             .onClick(async () => {

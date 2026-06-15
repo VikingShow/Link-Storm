@@ -51,7 +51,7 @@ struct Detail {
     Column({ space: 16 }) {
       Row() {
         Column({ space: 4 }) {
-          Text('鎯虫硶璇︽儏')
+          Text('想法详情')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
           Text(this.idea ? ideaTypeLabel(this.idea.type) : 'Loading')
@@ -59,7 +59,7 @@ struct Detail {
             .fontColor('#667085')
         }
         Blank()
-        Button('杩斿洖')
+        Button('返回')
           .buttonStyle(ButtonStyleMode.NORMAL)
           .onClick(() => router.back())
       }
@@ -111,7 +111,7 @@ struct Detail {
         }
         if (this.getAsset()?.type === 'handwriting') {
           Column({ space: 6 }) {
-            Text(`鎵嬪啓绗旂敾锛?{this.getAsset()?.strokes?.length ?? 0}`)
+            Text(`手写笔画：${this.getAsset()?.strokes?.length ?? 0}`)
               .fontSize(12)
               .fontColor('#667085')
             if (this.getAsset()?.previewPath) {
@@ -156,9 +156,9 @@ struct Detail {
             .fontSize(12)
         }
         this.AssetSection()
-        TextInput({ text: this.title, placeholder: '鏍囬' })
+        TextInput({ text: this.title, placeholder: '标题' })
           .onChange((value: string) => this.title = value)
-        TextInput({ text: this.tags, placeholder: '鏍囩锛岄€楀彿鍒嗛殧' })
+        TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })
           .onChange((value: string) => this.tags = value)
         if (this.tagsCatalog.length > 0) {
           Row({ space: 6 }) {
@@ -171,9 +171,9 @@ struct Detail {
             }, (tag: IdeaTag) => tag.id)
           }
         }
-        TextInput({ text: this.sourceTitle, placeholder: '鏉ユ簮鏍囬' })
+        TextInput({ text: this.sourceTitle, placeholder: '来源标题' })
           .onChange((value: string) => this.sourceTitle = value)
-        TextInput({ text: this.sourceUrl, placeholder: '鏉ユ簮閾炬帴' })
+        TextInput({ text: this.sourceUrl, placeholder: '来源链接' })
           .onChange((value: string) => this.sourceUrl = value)
           Text('文件夹')
           .fontSize(12)
@@ -210,7 +210,7 @@ struct Detail {
           .onChange((value: string) => this.note = value)
 
         Row({ space: 10 }) {
-          Button(this.idea.isFavorite ? '鍙栨秷鏀惰棌' : '鏀惰棌')
+          Button(this.idea.isFavorite ? '取消收藏' : '收藏')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .onClick(async () => {
               const current = this.idea;
@@ -220,7 +220,7 @@ struct Detail {
               await ideaRepository.update(this.ideaId, { isFavorite: !current.isFavorite });
               await this.reload();
             })
-          Button(this.idea.isArchived ? '鍙栨秷褰掓。' : '褰掓。')
+          Button(this.idea.isArchived ? '取消归档' : '归档')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .onClick(async () => {
               const current = this.idea;
@@ -230,7 +230,7 @@ struct Detail {
               await ideaRepository.update(this.ideaId, { isArchived: !current.isArchived });
               await this.reload();
             })
-          Button('淇濆瓨')
+          Button('保存')
             .backgroundColor('#136F63')
             .fontColor(Color.White)
             .onClick(async () => {
@@ -251,7 +251,7 @@ struct Detail {
               this.status = 'saved';
               await this.reload();
             })
-          Button('鍒犻櫎')
+          Button('删除')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .fontColor('#B42318')
             .onClick(async () => {
@@ -275,7 +275,7 @@ struct Detail {
 
   private async reload(): Promise<void> {
     if (!this.ideaId) {
-      this.status = '缂哄皯鎯虫硶 ID';
+      this.status = '缺少想法 ID';
       return;
     }
     const loaded = await ideaRepository.getById(this.ideaId);

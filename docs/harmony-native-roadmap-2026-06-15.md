@@ -19,6 +19,7 @@ Date: 2026-06-15
 - Repository result-set cleanup, temp backup cleanup, and managed file cleanup now use explicit guards
 - DevEco CLI produces `entry-default-unsigned.hap`; project signing remains intentionally unconfigured
 - Repository row parsing now uses explicit fallbacks for malformed RDB rows
+- Detail and handwriting capture controls now use readable Chinese labels instead of mojibake placeholders
 
 ## Verified milestone
 
@@ -66,6 +67,10 @@ docs(harmony): document unsigned hap build output
 feat(harmony): guard repository row parsing
 ```
 
+```text
+fix(harmony): polish visible capture labels
+```
+
 Verification:
 
 ```text
@@ -93,9 +98,10 @@ BUILD SUCCESSFUL
 ## Next milestones
 
 1. Prepare real signing profile inputs for physical-device installation
-2. Continue splitting remaining draft/file helpers from the main RDB path
-3. Validate audio capture and playback on a physical HarmonyOS device
-4. Revisit remaining SDK compatibility warnings after feature parity improves
+2. Continue cleaning remaining visible text and status feedback
+3. Continue splitting remaining draft/file helpers from the main RDB path
+4. Validate audio capture and playback on a physical HarmonyOS device
+5. Revisit remaining SDK compatibility warnings after feature parity improves
 
 ## Git workflow
 

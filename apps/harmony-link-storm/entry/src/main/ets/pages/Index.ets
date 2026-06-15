@@ -68,6 +68,7 @@ struct Index {
   @State private batchFolderId: string = '';
   @State private batchTagsInput: string = '';
   @State private folderNameInput: string = '';
+  @State private folderParentInput: string = '';
   @State private editingFolderId: string = '';
   @State private tagNameInput: string = '';
   @State private editingTagId: string = '';
@@ -576,8 +577,8 @@ struct Index {
             this.folderId = '';
             void this.persistCaptureDraft();
           })
-        ForEach(this.folders, (folder: IdeaFolder) => {
-          Button(folder.name)
+        ForEach(this.displayFolders(), (folder: IdeaFolder) => {
+          Button(this.folderDisplayName(folder))
             .buttonStyle(ButtonStyleMode.NORMAL)
             .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
             .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
@@ -649,8 +650,8 @@ struct Index {
             .fontColor('#667085')
           Row({ space: 6 }) {
             this.FolderFilterButton('all', '全部文件夹')
-            ForEach(this.folders, (folder: IdeaFolder) => {
-              this.FolderFilterButton(folder.id, folder.name)
+            ForEach(this.displayFolders(), (folder: IdeaFolder) => {
+              this.FolderFilterButton(folder.id, this.folderDisplayName(folder))
             }, (folder: IdeaFolder) => folder.id)
           }
         }
@@ -774,8 +775,8 @@ struct Index {
             .fontColor('#667085')
           Row({ space: 8 }) {
             if (this.folders.length > 0) {
-              ForEach(this.folders, (folder: IdeaFolder) => {
-                Button(folder.name)
+              ForEach(this.displayFolders(), (folder: IdeaFolder) => {
+                Button(this.folderDisplayName(folder))
                   .buttonStyle(ButtonStyleMode.NORMAL)
                   .backgroundColor(this.batchFolderId === folder.id ? '#E0F2EE' : '#FFFFFF')
                   .fontColor(this.batchFolderId === folder.id ? '#0B4F47' : '#697386')
@@ -1192,7 +1193,7 @@ struct Index {
     return this.ideas.filter((idea: Idea) => {
       const typeOk = this.typeFilter === 'all' || idea.type === this.typeFilter;
       const tagOk = !this.tagFilter || idea.tags.includes(this.tagFilter);
-      const folderOk = this.folderFilter === 'all' || idea.folderId === this.folderFilter;
+      const folderOk = this.folderFilter === 'all' || this.folderMatchesFilter(idea.folderId, this.folderFilter);
       const statusOk = this.statusFilter === 'all'
         || (this.statusFilter === 'favorite' && idea.isFavorite)
         || (this.statusFilter === 'archived' && idea.isArchived)
@@ -1217,7 +1218,47 @@ struct Index {
       return '';
     }
     const folder = this.folders.find((item: IdeaFolder) => item.id === folderId);
-    return folder ? folder.name : '';
+    return folder ? this.folderDisplayName(folder) : '';
+  }
+
+  private folderMatchesFilter(folderId: string | undefined, filterId: string): boolean {
+    if (!folderId) {
+      return false;
+    }
+    if (folderId === filterId) {
+      return true;
+    }
+    const folder = this.folders.find((item: IdeaFolder) => item.id === folderId);
+    return folder?.parentId === filterId;
+  }
+
+  private displayFolders(): IdeaFolder[] {
+    const result: IdeaFolder[] = [];
+    const roots = this.folders.filter((folder: IdeaFolder) => !folder.parentId);
+    for (const root of roots) {
+      result.push(root);
+      for (const child of this.folders.filter((folder: IdeaFolder) => folder.parentId === root.id)) {
+        result.push(child);
+      }
+    }
+    for (const folder of this.folders) {
+      if (!result.some((item: IdeaFolder) => item.id === folder.id)) {
+        result.push(folder);
+      }
+    }
+    return result;
+  }
+
+  private rootFoldersForParentPicker(): IdeaFolder[] {
+    return this.folders.filter((folder: IdeaFolder) => !folder.parentId && folder.id !== this.editingFolderId);
+  }
+
+  private folderDisplayName(folder: IdeaFolder): string {
+    if (!folder.parentId) {
+      return folder.name;
+    }
+    const parent = this.folders.find((item: IdeaFolder) => item.id === folder.parentId);
+    return parent ? `${parent.name} / ${folder.name}` : folder.name;
   }
 
   private hasActiveFilters(): boolean {
@@ -1309,12 +1350,13 @@ struct Index {
       return;
     }
     if (this.editingFolderId.length > 0) {
-      await ideaRepository.updateFolder(this.editingFolderId, { name });
+      await ideaRepository.updateFolder(this.editingFolderId, { name, parentId: this.folderParentInput || undefined, updateParent: true });
       this.editingFolderId = '';
     } else {
-      await ideaRepository.createFolder(name);
+      await ideaRepository.createFolder(name, '#136F63', this.folderParentInput || undefined);
     }
     this.folderNameInput = '';
+    this.folderParentInput = '';
   }
 
   @Builder
@@ -1328,6 +1370,11 @@ struct Index {
         TextInput({ placeholder: '文件夹名称', text: this.folderNameInput })
           .onChange((value: string) => this.folderNameInput = value)
           .layoutWeight(1)
+        Button(this.folderParentInput.length > 0 ? `父级：${this.folderNameForSearch(this.folderParentInput)}` : '根级')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.folderParentInput.length > 0 ? '#E0F2EE' : '#FFFFFF')
+          .fontColor(this.folderParentInput.length > 0 ? '#0B4F47' : '#697386')
+          .onClick(() => this.folderParentInput = '')
         Button(this.editingFolderId.length > 0 ? '保存文件夹' : '新建文件夹')
           .buttonStyle(ButtonStyleMode.NORMAL)
           .onClick(async () => {
@@ -1335,14 +1382,28 @@ struct Index {
             await this.reloadFolders();
           })
       }
+      if (this.rootFoldersForParentPicker().length > 0) {
+        Row({ space: 8 }) {
+          Text('父级')
+            .fontSize(12)
+            .fontColor('#667085')
+          ForEach(this.rootFoldersForParentPicker(), (folder: IdeaFolder) => {
+            Button(folder.name)
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .backgroundColor(this.folderParentInput === folder.id ? '#E0F2EE' : '#FFFFFF')
+              .fontColor(this.folderParentInput === folder.id ? '#0B4F47' : '#697386')
+              .onClick(() => this.folderParentInput = folder.id)
+          }, (folder: IdeaFolder) => folder.id)
+        }
+      }
       if (this.folders.length > 0) {
-        ForEach(this.folders, (folder: IdeaFolder) => {
+        ForEach(this.displayFolders(), (folder: IdeaFolder) => {
           Row() {
             Column({ space: 2 }) {
-              Text(folder.name)
+              Text(this.folderDisplayName(folder))
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
-              Text(folder.id)
+              Text(folder.parentId ? '子文件夹' : '根文件夹')
                 .fontSize(11)
                 .fontColor('#667085')
                 .maxLines(1)
@@ -1357,6 +1418,7 @@ struct Index {
               .onClick(() => {
                 this.editingFolderId = folder.id;
                 this.folderNameInput = folder.name;
+                this.folderParentInput = folder.parentId || '';
               })
             Button('删除')
               .buttonStyle(ButtonStyleMode.NORMAL)
@@ -1366,6 +1428,7 @@ struct Index {
                 if (this.editingFolderId === folder.id) {
                   this.editingFolderId = '';
                   this.folderNameInput = '';
+                  this.folderParentInput = '';
                 }
                 if (this.folderFilter === folder.id) {
                   this.folderFilter = 'all';

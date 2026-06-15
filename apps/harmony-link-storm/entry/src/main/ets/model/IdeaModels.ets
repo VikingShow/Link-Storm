@@ -15,6 +15,7 @@ export interface IdeaFolder {
   id: string;
   name: string;
   color: string;
+  parentId?: string;
   createdAt: string;
   updatedAt: string;
 }

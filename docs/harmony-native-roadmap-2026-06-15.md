@@ -56,6 +56,7 @@ Date: 2026-06-15
 - Home and detail deletion now let users remove only the record or remove the record together with managed local attachments
 - Capture now offers an explicit clipboard read action that fills source links or document text and persists the native capture draft
 - ZIP backup export now records attachment SHA-256 hashes, and ZIP import reuses matching managed attachments instead of duplicating files
+- Folder management now supports two-level folders with parent-aware capture, filtering, batch move, detail editing, import, and export
 
 ## Verified milestone
 
@@ -249,6 +250,10 @@ feat(harmony): capture from clipboard manually
 
 ```text
 feat(harmony): hash backup attachments
+```
+
+```text
+feat(harmony): support nested folders
 ```
 
 Verification:

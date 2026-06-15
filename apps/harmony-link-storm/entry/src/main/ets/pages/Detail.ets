@@ -503,8 +503,8 @@ struct Detail {
           .backgroundColor(this.folderId.length === 0 ? '#E0F2EE' : '#FFFFFF')
           .fontColor(this.folderId.length === 0 ? '#0B4F47' : '#697386')
           .onClick(() => this.folderId = '')
-        ForEach(this.folders, (folder: IdeaFolder) => {
-          Button(folder.name)
+        ForEach(this.displayFolders(), (folder: IdeaFolder) => {
+          Button(this.folderDisplayName(folder))
             .buttonStyle(ButtonStyleMode.NORMAL)
             .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
             .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
@@ -691,6 +691,31 @@ struct Detail {
 
   private async refreshFolders(): Promise<void> {
     this.folders = await ideaRepository.listFolders();
+  }
+
+  private displayFolders(): IdeaFolder[] {
+    const result: IdeaFolder[] = [];
+    const roots = this.folders.filter((folder: IdeaFolder) => !folder.parentId);
+    for (const root of roots) {
+      result.push(root);
+      for (const child of this.folders.filter((folder: IdeaFolder) => folder.parentId === root.id)) {
+        result.push(child);
+      }
+    }
+    for (const folder of this.folders) {
+      if (!result.some((item: IdeaFolder) => item.id === folder.id)) {
+        result.push(folder);
+      }
+    }
+    return result;
+  }
+
+  private folderDisplayName(folder: IdeaFolder): string {
+    if (!folder.parentId) {
+      return folder.name;
+    }
+    const parent = this.folders.find((item: IdeaFolder) => item.id === folder.parentId);
+    return parent ? `${parent.name} / ${folder.name}` : folder.name;
   }
 
   private async refreshTags(): Promise<void> {

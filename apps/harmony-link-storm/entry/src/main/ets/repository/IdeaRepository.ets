@@ -47,6 +47,13 @@ interface CaptureDraftRecord {
   savedAt: string;
 }
 
+interface FolderPatch {
+  name?: string;
+  color?: string;
+  parentId?: string;
+  updateParent?: boolean;
+}
+
 type RdbStore = relationalStore.RdbStore;
 type ValuesBucket = relationalStore.ValuesBucket;
 
@@ -318,11 +325,12 @@ export class IdeaRepository {
     }
   }
 
-  async createFolder(name: string, color: string = '#136F63'): Promise<IdeaFolder> {
+  async createFolder(name: string, color: string = '#136F63', parentId?: string): Promise<IdeaFolder> {
     const folder: IdeaFolder = {
       id: this.createId(),
       name: name.trim() || '未命名文件夹',
       color,
+      parentId: parentId || undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -330,7 +338,7 @@ export class IdeaRepository {
     return folder;
   }
 
-  async updateFolder(id: string, patch: Partial<IdeaFolder>): Promise<void> {
+  async updateFolder(id: string, patch: FolderPatch): Promise<void> {
     const current = await this.getFolderById(id);
     if (!current) {
       return;
@@ -339,6 +347,7 @@ export class IdeaRepository {
       id: current.id,
       name: patch.name ?? current.name,
       color: patch.color ?? current.color,
+      parentId: patch.updateParent ? this.validFolderParentId(id, patch.parentId) : current.parentId,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };
@@ -346,6 +355,7 @@ export class IdeaRepository {
   }
 
   async deleteFolder(id: string, reassignIdeaFolderId?: string): Promise<void> {
+    await this.promoteChildFolders(id);
     await this.deleteRowsGuarded(this.predicatesFor(FOLDERS_TABLE, id), '删除文件夹失败');
     const ideas = await this.list();
     const now = new Date().toISOString();
@@ -770,9 +780,11 @@ export class IdeaRepository {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT NOT NULL,
+      parentId TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )`, '初始化文件夹表失败');
+    await this.addColumnIfMissing(FOLDERS_TABLE, 'parentId', 'TEXT');
     await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${TAGS_TABLE} (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -901,6 +913,20 @@ export class IdeaRepository {
     await this.deleteTableRowsGuarded(AI_OUTPUTS_TABLE, '清空 AI 结果表失败');
     for (const item of items) {
       await this.insertRowGuarded(AI_OUTPUTS_TABLE, this.aiOutputToBucket(item), '写入 AI 结果数据失败');
+    }
+  }
+
+  private validFolderParentId(folderId: string, parentId: string | undefined): string | undefined {
+    if (!parentId || parentId === folderId) {
+      return undefined;
+    }
+    return parentId;
+  }
+
+  private async promoteChildFolders(parentId: string): Promise<void> {
+    const folders = await this.listFolders();
+    for (const folder of folders.filter((item: IdeaFolder) => item.parentId === parentId)) {
+      await this.updateFolder(folder.id, { parentId: undefined, updateParent: true });
     }
   }
 
@@ -1082,6 +1108,7 @@ export class IdeaRepository {
       id: this.readString(resultSet, 'id', this.createId()),
       name: this.readString(resultSet, 'name', '未命名文件夹'),
       color: this.readString(resultSet, 'color', '#136F63'),
+      parentId: this.readNullableString(resultSet, 'parentId') || undefined,
       createdAt: this.readString(resultSet, 'createdAt', now),
       updatedAt: this.readString(resultSet, 'updatedAt', now)
     };
@@ -1139,6 +1166,7 @@ export class IdeaRepository {
       id: folder.id,
       name: folder.name,
       color: folder.color,
+      parentId: folder.parentId || null,
       createdAt: folder.createdAt,
       updatedAt: folder.updatedAt
     };
@@ -1485,6 +1513,14 @@ export class IdeaRepository {
       await this.ensureStore().executeSql(sql);
     } catch (err) {
       throw new Error(`${message}：${String(err)}`);
+    }
+  }
+
+  private async addColumnIfMissing(table: string, column: string, definition: string): Promise<void> {
+    try {
+      await this.ensureStore().executeSql(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    } catch {
+      // Existing installations may already have this migrated column.
     }
   }
 

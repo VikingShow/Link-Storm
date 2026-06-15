@@ -162,7 +162,27 @@ struct Index {
             this.exportStatus = `分享失败：${String(err)}`;
           }
         })
+      Button('TXT')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          try {
+            const uri = await this.exportIdeasAsPlainTextFile();
+            this.exportStatus = `TXT 已导出：${uri}`;
+          } catch (err) {
+            this.exportStatus = `TXT 导出失败：${String(err)}`;
+          }
+        })
       Button('Markdown')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          try {
+            const uri = await this.exportIdeasAsMarkdownFile();
+            this.exportStatus = `Markdown 已导出：${uri}`;
+          } catch (err) {
+            this.exportStatus = `Markdown 导出失败：${String(err)}`;
+          }
+        })
+      Button('分享MD')
         .buttonStyle(ButtonStyleMode.NORMAL)
         .onClick(async () => {
           try {
@@ -1152,6 +1172,14 @@ struct Index {
     await this.shareTextContent(this.buildMarkdownExport(items), 'Link Storm Markdown', `Markdown 导出 ${items.length} 条本地想法`);
   }
 
+  private async exportIdeasAsPlainTextFile(): Promise<string> {
+    return ideaRepository.exportPlainTextToFile(this.buildPlainTextExport(this.shareTargetIdeas()));
+  }
+
+  private async exportIdeasAsMarkdownFile(): Promise<string> {
+    return ideaRepository.exportMarkdownToFile(this.buildMarkdownExport(this.shareTargetIdeas()));
+  }
+
   private async shareTextContent(content: string, title: string, description: string): Promise<void> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const shareData = new systemShare.SharedData({
@@ -1226,6 +1254,42 @@ struct Index {
       if (idea.context.title.length > 0 || idea.context.url.length > 0) {
         lines.push(`  来源: ${idea.context.title}${idea.context.url ? ` ${idea.context.url}` : ''}`);
       }
+    }
+    return lines.join('\n');
+  }
+
+  private buildPlainTextExport(items: Idea[]): string {
+    if (items.length === 0) {
+      return 'Link Storm\n\n当前没有可导出的记录。\n';
+    }
+    const lines: string[] = [
+      'Link Storm 导出',
+      `导出时间：${new Date().toLocaleString()}`,
+      `记录数量：${items.length}`,
+      ''
+    ];
+    for (const idea of items) {
+      lines.push(idea.title);
+      lines.push(`类型：${ideaTypeLabel(idea.type)}`);
+      lines.push(`创建时间：${new Date(idea.createdAt).toLocaleString()}`);
+      lines.push(`更新时间：${new Date(idea.updatedAt).toLocaleString()}`);
+      if (idea.tags.length > 0) {
+        lines.push(`标签：${idea.tags.join('、')}`);
+      }
+      if (idea.context.title.length > 0) {
+        lines.push(`来源标题：${idea.context.title}`);
+      }
+      if (idea.context.url.length > 0) {
+        lines.push(`来源链接：${idea.context.url}`);
+      }
+      if (idea.asset?.localUri) {
+        lines.push(`附件：${idea.asset.localUri}`);
+      }
+      lines.push('');
+      lines.push(idea.plainText || idea.note || this.previewText(idea));
+      lines.push('');
+      lines.push('---');
+      lines.push('');
     }
     return lines.join('\n');
   }

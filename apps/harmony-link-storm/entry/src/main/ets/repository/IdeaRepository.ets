@@ -15,6 +15,8 @@ const CAPTURE_DRAFT_ID = 'capture_draft';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
 const EXPORT_SCHEMA = 'link-storm-local-capture-export';
 const EXPORT_FILE_SUFFIX = '.json';
+const MARKDOWN_EXPORT_FILE_SUFFIX = '.md';
+const TXT_EXPORT_FILE_SUFFIX = '.txt';
 const BACKUP_SCHEMA = 'link-storm-backup';
 const BACKUP_FILE_SUFFIX = '.zip';
 
@@ -390,20 +392,31 @@ export class IdeaRepository {
   }
 
   async exportToFile(): Promise<string> {
+    return this.exportTextContentToFile(await this.exportJson(), `link-storm-export-${this.timestampStamp()}${EXPORT_FILE_SUFFIX}`, ['JSON|json']);
+  }
+
+  async exportMarkdownToFile(content: string): Promise<string> {
+    return this.exportTextContentToFile(content, `link-storm-export-${this.timestampStamp()}${MARKDOWN_EXPORT_FILE_SUFFIX}`, ['Markdown|md']);
+  }
+
+  async exportPlainTextToFile(content: string): Promise<string> {
+    return this.exportTextContentToFile(content, `link-storm-export-${this.timestampStamp()}${TXT_EXPORT_FILE_SUFFIX}`, ['Text|txt']);
+  }
+
+  private async exportTextContentToFile(content: string, fileName: string, fileSuffixChoices: string[]): Promise<string> {
     const context = this.ensureContext();
     const pickerInstance = new picker.DocumentViewPicker(context);
-    const fileNames = [`link-storm-export-${this.timestampStamp()}${EXPORT_FILE_SUFFIX}`];
     const uris = await pickerInstance.save({
-      newFileNames: fileNames,
+      newFileNames: [fileName],
       defaultFilePathUri: fileUri.getUriFromPath(context.filesDir),
-      fileSuffixChoices: ['JSON|json']
+      fileSuffixChoices
     });
     if (uris.length === 0) {
       throw new Error('已取消导出');
     }
     const target = uris[0];
     const path = this.resolveFilePath(target);
-    this.writeTextFile(path, await this.exportJson());
+    this.writeTextFile(path, content);
     return target;
   }
 

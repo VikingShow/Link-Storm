@@ -37,6 +37,7 @@ Date: 2026-06-15
 - Repository import, backup, attachment copy, and RDB cursor reads now use localized guarded helpers
 - Screenshot fallback and handwriting preview now use `UIContext` component snapshots and `ImagePacker.packToData`
 - Selected or filtered ideas can now be shared/exported as plain text or Markdown through the native share sheet
+- Selected or filtered ideas can now be saved as TXT or Markdown files through the native document picker
 
 ## Verified milestone
 
@@ -154,6 +155,10 @@ feat(harmony): modernize capture snapshot encoding
 
 ```text
 feat(harmony): share ideas as markdown
+```
+
+```text
+feat(harmony): export ideas as text files
 ```
 
 Verification:

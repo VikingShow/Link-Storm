@@ -2,6 +2,7 @@ import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
 import deviceInfo from '@ohos.deviceInfo';
 import fileIo from '@ohos.file.fs';
+import fileHash from '@ohos.file.hash';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
@@ -21,6 +22,7 @@ const MARKDOWN_EXPORT_FILE_SUFFIX = '.md';
 const TXT_EXPORT_FILE_SUFFIX = '.txt';
 const BACKUP_SCHEMA = 'link-storm-backup';
 const BACKUP_FILE_SUFFIX = '.zip';
+const ATTACHMENT_HASH_ALGORITHM = 'sha256';
 
 interface MergeResult {
   inserted: number;
@@ -463,7 +465,7 @@ export class IdeaRepository {
     await this.deleteRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '删除想法失败');
     await this.deleteRowsGuarded(new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE).equalTo('ideaId', id), '删除想法 AI 结果失败');
     if (deleteManagedAssets) {
-      this.cleanupManagedIdeaAssetFiles(current?.asset);
+      this.cleanupManagedIdeaAssetFiles(current?.asset, this.collectManagedAssetPaths(await this.list()));
     }
   }
 
@@ -637,7 +639,7 @@ export class IdeaRepository {
       const parsed = this.readBackupPayload(extractDir);
       const importedAttachmentPaths: string[] = [];
       const attachmentsDir = this.prepareImportAttachmentsDir();
-      const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir, importedAttachmentPaths);
+      const attachmentMap = await this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir, importedAttachmentPaths);
       const importedIdeas = this.attachImportedAssets(parsed.ideas, attachmentMap);
       return await this.importPayload(importedIdeas, parsed.folders, parsed.tags, parsed.aiOutputs, strategy, importedAttachmentPaths);
     } finally {
@@ -806,8 +808,9 @@ export class IdeaRepository {
       const plan = await this.createImportApplyPlan(incomingIdeas, incomingFolders, incomingTags, incomingAiOutputs, strategy);
       await this.applyImportPlan(plan);
       const keepPaths = this.collectManagedAssetPaths(plan.ideas);
+      const retainedPreviousPaths = this.collectRetainedPreviousManagedAssetPaths(plan.previousIdeas, plan.ideas);
       this.cleanupReplacedManagedAssets(plan.previousIdeas, keepPaths);
-      this.cleanupUnusedImportedAttachmentPaths(importedAttachmentPaths, keepPaths);
+      this.cleanupUnusedImportedAttachmentPaths(importedAttachmentPaths, keepPaths.concat(retainedPreviousPaths));
       return plan.result;
     } catch (err) {
       this.cleanupImportedAttachmentPaths(importedAttachmentPaths);
@@ -908,23 +911,33 @@ export class IdeaRepository {
     return attachmentsDir;
   }
 
-  private extractBackupAttachments(attachments: IdeaBackupAttachment[] | undefined, extractDir: string, attachmentsDir: string, importedPaths: string[] = []): Map<string, string> {
+  private async extractBackupAttachments(attachments: IdeaBackupAttachment[] | undefined, extractDir: string, attachmentsDir: string, importedPaths: string[] = []): Promise<Map<string, string>> {
     const map = new Map<string, string>();
     if (!Array.isArray(attachments)) {
       return map;
     }
+    const knownHashes = await this.collectManagedAttachmentHashes();
     for (const attachment of attachments) {
       const sourcePath = `${extractDir}/${attachment.relativePath}`;
       if (!this.fileExists(sourcePath)) {
         continue;
       }
       const role = attachment.role || 'localUri';
+      const hashKey = await this.backupAttachmentHashKey(attachment, sourcePath);
+      const existingPath = hashKey ? knownHashes.get(hashKey) : undefined;
+      if (existingPath && this.fileExists(existingPath)) {
+        map.set(`${attachment.ideaId}:${role}`, existingPath);
+        continue;
+      }
       const fileName = `${attachment.ideaId}-${this.safeName(role)}-${this.safeName(attachment.kind || 'asset')}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
       const targetPath = `${attachmentsDir}/${fileName}`;
       try {
         fileIo.copyFileSync(sourcePath, targetPath);
         map.set(`${attachment.ideaId}:${role}`, targetPath);
         importedPaths.push(targetPath);
+        if (hashKey) {
+          knownHashes.set(hashKey, targetPath);
+        }
       } catch {
         // Skip attachments that cannot be restored from the backup archive.
       }
@@ -1193,6 +1206,17 @@ export class IdeaRepository {
     }
   }
 
+  private collectRetainedPreviousManagedAssetPaths(previousIdeas: Idea[], nextIdeas: Idea[]): string[] {
+    const previousPaths = new Set(this.collectManagedAssetPaths(previousIdeas));
+    const paths: string[] = [];
+    for (const path of this.collectManagedAssetPaths(nextIdeas)) {
+      if (previousPaths.has(path) && !paths.includes(path)) {
+        paths.push(path);
+      }
+    }
+    return paths;
+  }
+
   private cleanupImportedAttachmentPaths(paths: string[]): void {
     for (const path of paths) {
       this.cleanupManagedPath(path);
@@ -1223,6 +1247,50 @@ export class IdeaRepository {
       }
     }
     return paths;
+  }
+
+  private async collectManagedAttachmentHashes(): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    const ideas = await this.list();
+    for (const path of this.collectManagedAssetPaths(ideas)) {
+      const resolved = this.resolveFilePath(path);
+      if (!this.fileExists(resolved)) {
+        continue;
+      }
+      try {
+        result.set(this.attachmentHashKey(await this.hashFile(resolved), ATTACHMENT_HASH_ALGORITHM), resolved);
+      } catch {
+        // Hash lookup is an optimization; unreadable files are restored as new copies.
+      }
+    }
+    return result;
+  }
+
+  private async backupAttachmentHashKey(attachment: IdeaBackupAttachment, sourcePath: string): Promise<string | undefined> {
+    if (attachment.hash && this.normalizeHashAlgorithm(attachment.hashAlgorithm) === ATTACHMENT_HASH_ALGORITHM) {
+      return this.attachmentHashKey(attachment.hash, ATTACHMENT_HASH_ALGORITHM);
+    }
+    try {
+      return this.attachmentHashKey(await this.hashFile(sourcePath), ATTACHMENT_HASH_ALGORITHM);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private attachmentHashKey(hash: string, algorithm: string): string {
+    return `${this.normalizeHashAlgorithm(algorithm)}:${hash.toLowerCase()}`;
+  }
+
+  private normalizeHashAlgorithm(algorithm: string | undefined): string {
+    return (algorithm || '').toLowerCase();
+  }
+
+  private async hashFile(path: string): Promise<string> {
+    try {
+      return (await fileHash.hash(path, ATTACHMENT_HASH_ALGORITHM)).toLowerCase();
+    } catch (err) {
+      throw new Error(`Hash file failed: ${String(err)}`);
+    }
   }
 
   private cleanupManagedPath(path: string | undefined): void {
@@ -1616,15 +1684,15 @@ export class IdeaRepository {
       if (!asset) {
         continue;
       }
-      this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'localUri', asset.localUri, attachmentsDir);
+      await this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'localUri', asset.localUri, attachmentsDir);
       if (asset.previewPath && asset.previewPath !== asset.localUri) {
-        this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'previewPath', asset.previewPath, attachmentsDir);
+        await this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'previewPath', asset.previewPath, attachmentsDir);
       }
     }
     return entries;
   }
 
-  private collectBackupAttachment(entries: IdeaBackupAttachment[], ideaId: string, kind: string, role: string, path: string, attachmentsDir: string): void {
+  private async collectBackupAttachment(entries: IdeaBackupAttachment[], ideaId: string, kind: string, role: string, path: string, attachmentsDir: string): Promise<void> {
     if (!path) {
       return;
     }
@@ -1636,13 +1704,16 @@ export class IdeaRepository {
     const relativePath = `attachments/${fileName}`;
     const destPath = `${attachmentsDir}/${fileName}`;
     try {
+      const hash = await this.hashFile(sourcePath);
       fileIo.copyFileSync(sourcePath, destPath);
       entries.push({
         ideaId,
         kind,
         role,
         sourcePath,
-        relativePath
+        relativePath,
+        hash,
+        hashAlgorithm: ATTACHMENT_HASH_ALGORITHM
       });
     } catch {
       // Skip attachments that cannot be copied into the backup payload.

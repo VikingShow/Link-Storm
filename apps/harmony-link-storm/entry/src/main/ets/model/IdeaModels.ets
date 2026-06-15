@@ -142,6 +142,8 @@ export interface IdeaBackupAttachment {
   role?: string;
   sourcePath: string;
   relativePath: string;
+  hash?: string;
+  hashAlgorithm?: string;
 }
 
 export interface IdeaBackupPreview {

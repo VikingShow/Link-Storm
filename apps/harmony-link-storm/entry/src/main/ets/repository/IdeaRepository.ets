@@ -485,14 +485,15 @@ export class IdeaRepository {
     this.ensureDirectory(attachmentsDir);
 
     try {
+      const ideas = await this.list();
       const backup: IdeaBackupPayload = {
         schema: BACKUP_SCHEMA,
         version: 1,
         exportedAt: new Date().toISOString(),
-        ideas: await this.list(),
+        ideas,
         folders: await this.listFolders(),
         tags: await this.listTags(),
-        attachments: await this.collectBackupAttachments(await this.list(), attachmentsDir)
+        attachments: await this.collectBackupAttachments(ideas, attachmentsDir)
       };
       this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
       await this.compressDirectoryGuarded(payloadDir, archivePath);

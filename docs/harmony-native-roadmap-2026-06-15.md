@@ -45,6 +45,7 @@ Date: 2026-06-15
 - Cross-app share capture now accepts sendData/sendMultipleData intents and imports the first local shared file/image into managed idea attachment storage
 - ZIP backup export/import temp directories now clean up recursively after compression or extraction
 - ZIP backup import now validates backup idea data before restoring attachments and merging
+- ZIP backup export now uses a single idea snapshot for manifest data and attachment collection
 
 ## Verified milestone
 
@@ -194,6 +195,10 @@ feat(harmony): cleanup backup temp directories
 
 ```text
 feat(harmony): validate backup idea payloads
+```
+
+```text
+feat(harmony): snapshot backup ideas once
 ```
 
 Verification:

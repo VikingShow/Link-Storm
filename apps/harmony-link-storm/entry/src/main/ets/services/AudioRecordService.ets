@@ -53,11 +53,11 @@ export class AudioRecordService {
       return;
     }
     this.currentPath = `${context.filesDir}/voice-${Date.now()}.m4a`;
-    this.fileHandle = fileIo.openSync(
-      this.currentPath,
-      fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.READ_WRITE
-    );
     try {
+      this.fileHandle = fileIo.openSync(
+        this.currentPath,
+        fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.READ_WRITE
+      );
       this.avRecorder = await media.createAVRecorder();
       const profile: media.AVRecorderProfile = {
         audioBitrate: 112000,
@@ -135,7 +135,7 @@ export class AudioRecordService {
       this.lastError = `Failed to stop audio recording: ${String(err)}`;
       throw new Error(this.lastError);
     } finally {
-      await this.avRecorder?.release();
+      await this.releaseRecorderQuietly();
       this.cleanupRecorder();
       this.resetTiming();
     }
@@ -157,7 +157,7 @@ export class AudioRecordService {
     } catch {
       // Ignore stop errors during cancellation.
     } finally {
-      await this.avRecorder?.release();
+      await this.releaseRecorderQuietly();
       this.cleanupRecorder();
       this.removeCurrentFile();
       this.resetSession();
@@ -179,10 +179,26 @@ export class AudioRecordService {
 
   private cleanupRecorder(): void {
     if (this.fileHandle) {
-      fileIo.closeSync(this.fileHandle);
-      this.fileHandle = undefined;
+      try {
+        fileIo.closeSync(this.fileHandle);
+      } catch {
+        // Ignore file handle cleanup failures after recorder release.
+      } finally {
+        this.fileHandle = undefined;
+      }
     }
     this.avRecorder = undefined;
+  }
+
+  private async releaseRecorderQuietly(): Promise<void> {
+    if (!this.avRecorder) {
+      return;
+    }
+    try {
+      await this.avRecorder.release();
+    } catch {
+      // Ignore release failures; recorder state is reset by cleanupRecorder.
+    }
   }
 
   private removeCurrentFile(): void {

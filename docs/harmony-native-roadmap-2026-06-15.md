@@ -15,6 +15,7 @@ Date: 2026-06-15
 - Floating ball service now keeps state consistent and records graceful fallback errors
 - Audio capture now exposes start, pause, resume, finish, and cancel controls with state recovery
 - Audio playback now releases resources on failures and exposes detail-page playback feedback
+- Audio recorder resource cleanup and microphone permission request failures are handled explicitly
 
 ## Verified milestone
 
@@ -46,6 +47,10 @@ feat(harmony): harden audio capture state flow
 feat(harmony): harden audio playback lifecycle
 ```
 
+```text
+feat(harmony): guard audio recorder cleanup
+```
+
 Verification:
 
 ```text
@@ -60,10 +65,10 @@ BUILD SUCCESSFUL
 
 ## Next milestones
 
-1. Revisit AVRecorder file-handle exception warnings and permission handling on device
-2. Reduce RDB and file API exception warnings where handling can be made explicit
+1. Reduce RDB and file API exception warnings where handling can be made explicit
+2. Add signing/profile notes for repeatable local HAP generation
 3. Continue splitting remaining draft/file helpers from the main RDB path
-4. Add signing/profile notes for repeatable local HAP generation
+4. Validate audio capture and playback on a physical HarmonyOS device
 5. Revisit remaining SDK compatibility warnings after feature parity improves
 
 ## Git workflow

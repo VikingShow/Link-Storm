@@ -19,8 +19,12 @@ export class PermissionService {
   }
 
   async request(permission: string): Promise<boolean> {
-    const result = await this.atManager.requestPermissionsFromUser(this.context, [permission as never]);
-    return result.authResults.length > 0 && result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+    try {
+      const result = await this.atManager.requestPermissionsFromUser(this.context, [permission as never]);
+      return result.authResults.length > 0 && result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+    } catch {
+      return false;
+    }
   }
 
   async requestMicrophone(): Promise<boolean> {

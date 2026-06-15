@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import componentSnapshot from '@ohos.arkui.componentSnapshot';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
@@ -1150,25 +1149,13 @@ struct Index {
       previewMode: systemShare.SharePreviewMode.DEFAULT,
       selectionMode: systemShare.SelectionMode.SINGLE
     };
-    await controller.show(context, options);
+    await this.showSharePanelGuarded(controller, context, options);
   }
 
   private async captureScreenshotFallback(): Promise<ScreenshotFallbackResult> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const pixelMap = await componentSnapshot.get(PAGE_ROOT_ID);
     const screenshotPath = `${context.filesDir}/screenshot-${Date.now()}.png`;
-    const packer = image.createImagePacker();
-    const data = await packer.packing(pixelMap, {
-      format: 'image/png',
-      quality: 100
-    });
-    const file = fileIo.openSync(screenshotPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
-    try {
-      fileIo.writeSync(file.fd, data);
-    } finally {
-      this.closeFileQuietly(file);
-      await this.releasePixelMapQuietly(pixelMap);
-    }
+    await this.saveComponentSnapshot(PAGE_ROOT_ID, screenshotPath);
 
     const asset: IdeaAsset = {
       type: 'screenshot',
@@ -1312,22 +1299,69 @@ struct Index {
   private async saveHandwritingPreview(): Promise<string> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const previewDir = `${context.filesDir}/idea-attachments`;
-    fileIo.mkdirSync(previewDir);
+    this.ensureDirectoryQuietly(previewDir);
     const previewPath = `${previewDir}/handwriting-${Date.now()}.png`;
-    const pixelMap = await componentSnapshot.get(this.handwritingCanvasId);
-    const packer = image.createImagePacker();
-    const data = await packer.packing(pixelMap, {
-      format: 'image/png',
-      quality: 100
-    });
-    const file = fileIo.openSync(previewPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+    await this.saveComponentSnapshot(this.handwritingCanvasId, previewPath);
+    return previewPath;
+  }
+
+  private async saveComponentSnapshot(componentId: string, path: string): Promise<void> {
+    const pixelMap = await this.captureComponentSnapshotGuarded(componentId);
     try {
-      fileIo.writeSync(file.fd, data);
+      const data = await this.packPixelMapToPngGuarded(pixelMap);
+      this.writeBinaryFile(path, data);
     } finally {
-      this.closeFileQuietly(file);
       await this.releasePixelMapQuietly(pixelMap);
     }
-    return previewPath;
+  }
+
+  private async showSharePanelGuarded(controller: systemShare.ShareController, context: common.UIAbilityContext, options: ShareOptions): Promise<void> {
+    try {
+      await controller.show(context, options);
+    } catch (err) {
+      throw new Error(`打开系统分享面板失败：${String(err)}`);
+    }
+  }
+
+  private async captureComponentSnapshotGuarded(componentId: string): Promise<image.PixelMap> {
+    try {
+      return await this.getUIContext().getComponentSnapshot().get(componentId);
+    } catch (err) {
+      throw new Error(`生成组件截图失败：${String(err)}`);
+    }
+  }
+
+  private async packPixelMapToPngGuarded(pixelMap: image.PixelMap): Promise<ArrayBuffer> {
+    try {
+      const packer = image.createImagePacker();
+      return await packer.packToData(pixelMap, {
+        format: 'image/png',
+        quality: 100
+      });
+    } catch (err) {
+      throw new Error(`编码 PNG 图片失败：${String(err)}`);
+    }
+  }
+
+  private writeBinaryFile(path: string, data: ArrayBuffer): void {
+    try {
+      const file = fileIo.openSync(path, fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC | fileIo.OpenMode.WRITE_ONLY);
+      try {
+        fileIo.writeSync(file.fd, data);
+      } finally {
+        this.closeFileQuietly(file);
+      }
+    } catch (err) {
+      throw new Error(`写入图片文件失败：${String(err)}`);
+    }
+  }
+
+  private ensureDirectoryQuietly(path: string): void {
+    try {
+      fileIo.mkdirSync(path);
+    } catch {
+      // The following file write reports the real failure if the directory is unusable.
+    }
   }
 
   private closeFileQuietly(file: fileIo.File): void {

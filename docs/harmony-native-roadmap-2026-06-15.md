@@ -35,6 +35,7 @@ Date: 2026-06-15
 - Page navigation now uses `UIContext.Router` instead of deprecated global router calls
 - Document capture now auto-saves body edits into the native capture draft and shows word/line stats
 - Repository import, backup, attachment copy, and RDB cursor reads now use localized guarded helpers
+- Screenshot fallback and handwriting preview now use `UIContext` component snapshots and `ImagePacker.packToData`
 
 ## Verified milestone
 
@@ -146,6 +147,10 @@ feat(harmony): autosave document capture body
 feat(harmony): guard repository file operations
 ```
 
+```text
+feat(harmony): modernize capture snapshot encoding
+```
+
 Verification:
 
 ```text
@@ -170,14 +175,20 @@ Result:
 BUILD SUCCESSFUL
 ```
 
+Remaining build warnings:
+
+```text
+AudioRecordService uses microphone recording APIs; module.json5 already declares ohos.permission.MICROPHONE.
+Project signing remains intentionally unconfigured.
+```
+
 ## Next milestones
 
 1. Prepare real signing profile inputs for physical-device installation
 2. Continue scanning for remaining visible text and status feedback gaps on device
-3. Continue reducing remaining native SDK compatibility warnings
-4. Continue splitting remaining draft/file helpers from the main RDB path
-5. Validate audio capture and playback on a physical HarmonyOS device
-6. Revisit screenshot and preview helper warnings after feature parity improves
+3. Continue splitting remaining draft/file helpers from the main RDB path
+4. Validate audio capture and playback on a physical HarmonyOS device
+5. Confirm whether the microphone static warning can be suppressed beyond the existing permission declaration
 
 ## Git workflow
 

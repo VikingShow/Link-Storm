@@ -42,6 +42,7 @@ Date: 2026-06-15
 - Renaming a tag now synchronizes the tag name across existing ideas without creating duplicates
 - Deleting an idea now removes managed local attachment and preview files
 - Import replacement now cleans up managed attachment files no longer referenced by imported ideas
+- Cross-app share capture now accepts sendData/sendMultipleData intents and imports the first local shared file/image into managed idea attachment storage
 
 ## Verified milestone
 
@@ -181,6 +182,10 @@ feat(harmony): cleanup deleted idea attachments
 feat(harmony): cleanup replaced import attachments
 ```
 
+```text
+feat(harmony): attach shared files to captured ideas
+```
+
 Verification:
 
 ```text
@@ -215,10 +220,11 @@ Project signing remains intentionally unconfigured.
 ## Next milestones
 
 1. Prepare real signing profile inputs for physical-device installation
-2. Continue scanning for remaining visible text and status feedback gaps on device
-3. Continue splitting remaining draft/file helpers from the main RDB path
-4. Validate audio capture and playback on a physical HarmonyOS device
-5. Confirm whether the microphone static warning can be suppressed beyond the existing permission declaration
+2. Validate share capture from browser, gallery, file manager, and chat apps on a physical HarmonyOS device
+3. Continue scanning for remaining visible text and status feedback gaps on device
+4. Continue splitting remaining draft/file helpers from the main RDB path
+5. Validate audio capture and playback on a physical HarmonyOS device
+6. Confirm whether the microphone static warning can be suppressed beyond the existing permission declaration
 
 ## Git workflow
 

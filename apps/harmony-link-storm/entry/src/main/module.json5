@@ -60,6 +60,15 @@
             "actions": [
               "ohos.want.action.viewData"
             ]
+          },
+          {
+            "entities": [
+              "entity.system.default"
+            ],
+            "actions": [
+              "ohos.want.action.sendData",
+              "ohos.want.action.sendMultipleData"
+            ]
           }
         ]
       }

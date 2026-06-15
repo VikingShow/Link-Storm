@@ -2,7 +2,7 @@ import { Want } from '@kit.AbilityKit';
 import fileUri from '@ohos.file.fileuri';
 
 export type ShareContextType = 'link' | 'shared_text' | 'screenshot' | 'image' | 'manual_note' | 'unknown';
-type WantParamValue = string | number | boolean | null | undefined;
+type WantParamValue = string | number | boolean | string[] | number[] | boolean[] | null | undefined;
 type WantParams = Record<string, WantParamValue>;
 
 export interface ShareCaptureState {
@@ -70,11 +70,11 @@ export class ShareCaptureService {
   private pickUrl(want: Want): string {
     const candidates = [
       this.readString(want.uri),
-      this.readParam(want, 'uri'),
-      this.readParam(want, 'url'),
-      this.readParam(want, 'link'),
-      this.readParam(want, 'shareUrl'),
-      this.readParam(want, 'ohos.extra.param.key.shareUrl')
+      this.readFirstParam(want, 'uri'),
+      this.readFirstParam(want, 'url'),
+      this.readFirstParam(want, 'link'),
+      this.readFirstParam(want, 'shareUrl'),
+      this.readFirstParam(want, 'ohos.extra.param.key.shareUrl')
     ];
     for (const candidate of candidates) {
       const normalized = this.normalizeUrl(candidate);
@@ -96,7 +96,7 @@ export class ShareCaptureService {
       this.readParam(want, 'contentTitle'),
       this.readParam(want, 'ohos.extra.param.key.contentTitle')
     ];
-    for (const candidate of candidates) {
+    for (const candidate of candidates.flat()) {
       const trimmed = candidate.trim();
       if (trimmed.length > 0) {
         return trimmed;
@@ -108,12 +108,18 @@ export class ShareCaptureService {
   private pickAttachments(want: Want): string[] {
     const values = [
       this.readParam(want, 'uri'),
+      this.readParam(want, 'uris'),
       this.readParam(want, 'url'),
       this.readString(want.uri),
       this.readParam(want, 'path'),
-      this.readParam(want, 'stream')
+      this.readParam(want, 'paths'),
+      this.readParam(want, 'stream'),
+      this.readParam(want, 'streams'),
+      this.readParam(want, 'ohos.extra.param.key.stream'),
+      this.readParam(want, 'ohos.extra.param.key.streams')
     ];
     const attachments = values
+      .flat()
       .map((value: string) => this.normalizeAttachment(value))
       .filter((value: string) => value.length > 0);
     return Array.from(new Set(attachments));
@@ -146,7 +152,7 @@ export class ShareCaptureService {
       return textSnippet;
     }
 
-    const wantTitle = this.readParam(want, 'title').trim();
+    const wantTitle = this.readFirstParam(want, 'title').trim();
     if (wantTitle.length > 0) {
       return wantTitle;
     }
@@ -258,12 +264,25 @@ export class ShareCaptureService {
     return '';
   }
 
-  private readParam(want: Want, key: string): string {
+  private readStrings(value: WantParamValue): string[] {
+    if (Array.isArray(value)) {
+      return value.map((item: string | number | boolean) => this.readString(item));
+    }
+    const single = this.readString(value);
+    return single.length > 0 ? [single] : [];
+  }
+
+  private readParam(want: Want, key: string): string[] {
     const params = want.parameters as WantParams | undefined;
     if (!params) {
-      return '';
+      return [];
     }
-    return this.readString(params[key]);
+    return this.readStrings(params[key]);
+  }
+
+  private readFirstParam(want: Want, key: string): string {
+    const values = this.readParam(want, key);
+    return values.length > 0 ? values[0] : '';
   }
 
   private cloneState(state: ShareCaptureState): ShareCaptureState {

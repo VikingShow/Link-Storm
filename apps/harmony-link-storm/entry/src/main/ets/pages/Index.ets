@@ -69,6 +69,7 @@ struct Index {
   @State private tagNameInput: string = '';
   @State private editingTagId: string = '';
   @State private shareCaptureSummary: string = '';
+  @State private sharedAttachmentUris: string[] = [];
   @State private audioRecorderState: string = 'idle';
   private handwritingCanvasId: string = 'handwriting-canvas';
 
@@ -386,6 +387,11 @@ struct Index {
       if (this.screenshotStatus.length > 0) {
         Text(this.screenshotStatus)
           .fontColor('#697386')
+          .fontSize(12)
+      }
+      if (this.shareCaptureSummary.length > 0) {
+        Text(this.shareCaptureSummary)
+          .fontColor('#136F63')
           .fontSize(12)
       }
 
@@ -969,11 +975,14 @@ struct Index {
       } : undefined
     };
 
-    await ideaRepository.save(draft);
+    const savedIdea = await ideaRepository.save(draft);
+    await this.importSharedAttachmentIfNeeded(savedIdea);
+    const saveStatus = this.shareCaptureSummary.length > 0 ? this.shareCaptureSummary : `想法已保存：${savedIdea.id}`;
     this.resetForm(true);
     await ideaRepository.clearCaptureDraft();
     shareCaptureService.clearShareState();
-    this.shareCaptureSummary = '';
+    this.shareCaptureSummary = saveStatus;
+    this.sharedAttachmentUris = [];
     await this.reloadIdeas();
   }
 
@@ -990,6 +999,7 @@ struct Index {
     this.audioDurationMs = 0;
     this.audioRecorderState = 'idle';
     this.handwritingText = '手写板已就绪，可直接书写';
+    this.sharedAttachmentUris = [];
     this.clearHandwriting(preserveHandwritingPreview);
   }
 
@@ -1777,7 +1787,37 @@ struct Index {
     if (shareState.attachments.length > 0 && this.note.length === 0) {
       this.note = `分享附件：${shareState.attachments.join(', ')}`;
     }
-    this.shareCaptureSummary = `分享已接收：${shareState.contextType}`;
+    this.sharedAttachmentUris = shareState.attachments;
+    const attachmentHint = shareState.attachments.length > 0 ? `，附件 ${shareState.attachments.length} 个` : '';
+    this.shareCaptureSummary = `分享已接收：${shareState.contextType}${attachmentHint}`;
+  }
+
+  private async importSharedAttachmentIfNeeded(idea: Idea): Promise<void> {
+    if (idea.asset || this.sharedAttachmentUris.length === 0) {
+      return;
+    }
+    const attachmentUri = this.firstLocalSharedAttachment();
+    if (attachmentUri.length === 0) {
+      this.shareCaptureSummary = '分享记录已保存，远程链接附件已作为来源保留';
+      return;
+    }
+    try {
+      const asset = await ideaRepository.importSharedAttachment(idea.id, attachmentUri);
+      if (asset) {
+        this.shareCaptureSummary = `分享附件已入库：${asset.localUri}`;
+      }
+    } catch (err) {
+      this.shareCaptureSummary = `分享记录已保存，附件入库失败：${String(err)}`;
+    }
+  }
+
+  private firstLocalSharedAttachment(): string {
+    for (const uri of this.sharedAttachmentUris) {
+      if (uri.startsWith('file://') || uri.startsWith('/') || uri.startsWith('content://')) {
+        return uri;
+      }
+    }
+    return '';
   }
 
 }

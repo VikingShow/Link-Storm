@@ -603,6 +603,26 @@ export class IdeaRepository {
     return nextAsset;
   }
 
+  async importSharedAttachment(ideaId: string, sourceUri: string): Promise<IdeaAsset | undefined> {
+    const sourcePath = this.resolveFilePath(sourceUri);
+    const current = await this.getById(ideaId);
+    if (!current) {
+      throw new Error('想法不存在');
+    }
+    const copiedPath = await this.copyAttachmentToIdeaStorage(sourcePath, ideaId, 'shared');
+    const nextAsset: IdeaAsset = {
+      type: this.inferAssetType(sourcePath, current.asset?.type || 'shared'),
+      localUri: copiedPath,
+      mimeType: this.inferMimeType(sourcePath, current.asset?.mimeType),
+      previewPath: this.isImageLikeAsset(sourcePath) ? copiedPath : (current.asset?.previewPath || undefined),
+      durationMs: current.asset?.durationMs,
+      strokes: current.asset?.strokes
+    };
+    await this.update(ideaId, { asset: nextAsset });
+    this.cleanupManagedIdeaAssetFiles(current.asset, [nextAsset.localUri, nextAsset.previewPath || '']);
+    return nextAsset;
+  }
+
   async clearIdeaAsset(ideaId: string): Promise<void> {
     const current = await this.getById(ideaId);
     if (!current) {

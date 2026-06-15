@@ -51,6 +51,7 @@ Date: 2026-06-15
 - Detail page now exports the current attachment, handwriting preview PNG, and handwriting strokes JSON through the native document picker
 - JSON and ZIP imports now replace ideas, folders, tags, and AI outputs inside one RDB transaction, with failed ZIP imports cleaning newly copied managed attachments
 - Home backup export can now immediately share the generated ZIP package through the native ShareKit panel
+- Home search now also covers folder names, manual context notes, and saved AI organization output content
 
 ## Verified milestone
 
@@ -224,6 +225,10 @@ feat(harmony): transaction-safe import payloads
 
 ```text
 feat(harmony): share backup zip packages
+```
+
+```text
+feat(harmony): search ai outputs and folders
 ```
 
 Verification:

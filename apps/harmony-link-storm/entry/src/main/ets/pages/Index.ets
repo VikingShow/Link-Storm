@@ -4,7 +4,7 @@ import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import { systemShare } from '@kit.ShareKit';
-import { CaptureDraftState, HandwritingStroke, Idea, IdeaAsset, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { CaptureDraftState, HandwritingStroke, Idea, IdeaAiOutput, IdeaAsset, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
@@ -54,6 +54,7 @@ struct Index {
   @State private statusFilter: string = 'all';
   @State private selectedIds: string[] = [];
   @State private ideas: Idea[] = [];
+  @State private aiSearchTextByIdeaId: Record<string, string> = {};
   @State private importStatus: string = '';
   @State private importStrategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER;
   @State private exportStatus: string = '';
@@ -1082,6 +1083,18 @@ struct Index {
 
   private async reloadIdeas(): Promise<void> {
     this.ideas = await ideaRepository.list();
+    await this.reloadAiSearchText();
+  }
+
+  private async reloadAiSearchText(): Promise<void> {
+    const next: Record<string, string> = {};
+    for (const idea of this.ideas) {
+      const outputs = await ideaRepository.listAiOutputs(idea.id);
+      next[idea.id] = outputs.map((output: IdeaAiOutput) => {
+        return [output.outputType, output.content, output.sourceIdeaIds.join(' ')].join(' ');
+      }).join(' ');
+    }
+    this.aiSearchTextByIdeaId = next;
   }
 
   private async reloadFolders(): Promise<void> {
@@ -1108,10 +1121,21 @@ struct Index {
         idea.note,
         idea.context.title,
         idea.context.url,
-        idea.tags.join(' ')
+        idea.context.manualNote,
+        idea.tags.join(' '),
+        this.folderNameForSearch(idea.folderId),
+        this.aiSearchTextByIdeaId[idea.id] || ''
       ].join(' ').toLowerCase();
       return typeOk && tagOk && folderOk && statusOk && (!query || text.includes(query));
     });
+  }
+
+  private folderNameForSearch(folderId: string | undefined): string {
+    if (!folderId) {
+      return '';
+    }
+    const folder = this.folders.find((item: IdeaFolder) => item.id === folderId);
+    return folder ? folder.name : '';
   }
 
   private hasActiveFilters(): boolean {

@@ -17,6 +17,7 @@ Date: 2026-06-15
 - Audio playback now releases resources on failures and exposes detail-page playback feedback
 - Audio recorder resource cleanup and microphone permission request failures are handled explicitly
 - Repository result-set cleanup, temp backup cleanup, and managed file cleanup now use explicit guards
+- DevEco CLI produces `entry-default-unsigned.hap`; project signing remains intentionally unconfigured
 
 ## Verified milestone
 
@@ -56,10 +57,26 @@ feat(harmony): guard audio recorder cleanup
 feat(harmony): guard repository resource cleanup
 ```
 
+```text
+docs(harmony): document unsigned hap build output
+```
+
 Verification:
 
 ```text
 node C:\Users\SowrJam\workspace\_tools\deveco-cli\dist\cli.js build --modules entry
+```
+
+Unsigned HAP output:
+
+```text
+apps/harmony-link-storm/entry/build/default/outputs/default/entry-default-unsigned.hap
+```
+
+Signing state:
+
+```text
+apps/harmony-link-storm/build-profile.json5 has an empty signingConfigs array.
 ```
 
 Result:
@@ -70,8 +87,8 @@ BUILD SUCCESSFUL
 
 ## Next milestones
 
-1. Add signing/profile notes for repeatable local HAP generation
-2. Continue reducing RDB row parsing warnings with explicit fallback behavior
+1. Continue reducing RDB row parsing warnings with explicit fallback behavior
+2. Prepare real signing profile inputs for physical-device installation
 3. Continue splitting remaining draft/file helpers from the main RDB path
 4. Validate audio capture and playback on a physical HarmonyOS device
 5. Revisit remaining SDK compatibility warnings after feature parity improves

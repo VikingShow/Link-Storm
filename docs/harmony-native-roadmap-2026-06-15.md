@@ -59,6 +59,7 @@ Date: 2026-06-15
 - Folder management now supports two-level folders with parent-aware capture, filtering, batch move, detail editing, import, and export
 - Detail AI preparation now supports separate editable result types for summary, action items, questions, transcription, OCR, and auto tags
 - Conservative imports now mark skipped same-ID records as sync conflicts and show sync status on home cards and detail pages
+- Conservative imports now preserve incoming same-ID conflicts as local conflict duplicates instead of dropping the imported version
 
 ## Verified milestone
 
@@ -264,6 +265,10 @@ feat(harmony): edit typed ai preparation outputs
 
 ```text
 feat(harmony): surface import conflict status
+```
+
+```text
+feat(harmony): keep import conflict duplicates
 ```
 
 Verification:

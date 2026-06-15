@@ -1649,8 +1649,10 @@ export class IdeaRepository {
         updated++;
       } else {
         map.set(current.id, this.copyIdeaWithSyncStatus(current, 'conflict'));
+        const duplicate = this.copyImportConflictDuplicate(idea, current.id);
+        map.set(duplicate.id, duplicate);
         conflicts.push(idea.id);
-        skipped++;
+        inserted++;
       }
     }
 
@@ -1680,6 +1682,27 @@ export class IdeaRepository {
       aiStatus: idea.aiStatus,
       createdAt: idea.createdAt,
       updatedAt: idea.updatedAt
+    };
+  }
+
+  private copyImportConflictDuplicate(idea: Idea, originalId: string): Idea {
+    const now = new Date().toISOString();
+    return {
+      id: this.createId(),
+      title: `${idea.title || this.defaultTitle(idea.type)}（导入冲突副本）`,
+      type: idea.type,
+      plainText: idea.plainText,
+      note: idea.note.length > 0 ? `${idea.note}\n\n原始冲突 ID：${originalId}` : `原始冲突 ID：${originalId}`,
+      tags: idea.tags,
+      folderId: idea.folderId,
+      context: idea.context,
+      asset: idea.asset,
+      isFavorite: idea.isFavorite,
+      isArchived: idea.isArchived,
+      syncStatus: 'conflict',
+      aiStatus: idea.aiStatus,
+      createdAt: idea.createdAt || now,
+      updatedAt: now
     };
   }
 

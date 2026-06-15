@@ -120,6 +120,7 @@ export interface IdeaBackupPayload {
 export interface IdeaBackupAttachment {
   ideaId: string;
   kind: string;
+  role?: string;
   sourcePath: string;
   relativePath: string;
 }

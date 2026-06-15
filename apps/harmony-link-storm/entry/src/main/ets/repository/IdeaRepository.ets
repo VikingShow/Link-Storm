@@ -453,21 +453,27 @@ export class IdeaRepository {
     const extractDir = `${tempRoot}/extract`;
     fileIo.mkdirSync(tempRoot);
     fileIo.mkdirSync(extractDir);
-    await zlib.decompressFile(zipPath, extractDir);
-    const manifest = this.readBackupManifest(extractDir);
-    const parsed = JSON.parse(manifest) as IdeaBackupPayload;
-    if (parsed.schema !== BACKUP_SCHEMA) {
-      throw new Error('Invalid backup schema');
+    try {
+      await zlib.decompressFile(zipPath, extractDir);
+      const manifest = this.readBackupManifest(extractDir);
+      const parsed = JSON.parse(manifest) as IdeaBackupPayload;
+      if (parsed.schema !== BACKUP_SCHEMA) {
+        throw new Error('Invalid backup schema');
+      }
+      const attachmentsDir = this.prepareImportAttachmentsDir();
+      const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir);
+      const importedIdeas = this.attachImportedAssets(parsed.ideas, attachmentMap);
+      const merged = await this.importPayloadIdeas(importedIdeas, strategy);
+      if (Array.isArray(parsed.folders)) {
+        await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders, strategy));
+      }
+      if (Array.isArray(parsed.tags)) {
+        await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags, strategy));
+      }
+      return merged;
+    } finally {
+      this.cleanupBackupTemp(tempRoot);
     }
-    const merged = await this.importPayloadIdeas(parsed.ideas, strategy);
-    if (Array.isArray(parsed.folders)) {
-      await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders, strategy));
-    }
-    if (Array.isArray(parsed.tags)) {
-      await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags, strategy));
-    }
-    this.cleanupBackupTemp(tempRoot);
-    return merged;
   }
 
   async importJson(payload: string, strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -618,6 +624,89 @@ export class IdeaRepository {
     for (const item of items) {
       await this.ensureStore().insert(TAGS_TABLE, this.tagToBucket(item));
     }
+  }
+
+  private prepareImportAttachmentsDir(): string {
+    const context = this.ensureContext();
+    const attachmentsDir = `${context.filesDir}/idea-attachments`;
+    fileIo.mkdirSync(attachmentsDir);
+    return attachmentsDir;
+  }
+
+  private extractBackupAttachments(attachments: IdeaBackupAttachment[] | undefined, extractDir: string, attachmentsDir: string): Map<string, string> {
+    const map = new Map<string, string>();
+    if (!Array.isArray(attachments)) {
+      return map;
+    }
+    for (const attachment of attachments) {
+      const sourcePath = `${extractDir}/${attachment.relativePath}`;
+      if (!fileIo.accessSync(sourcePath)) {
+        continue;
+      }
+      const role = attachment.role || 'localUri';
+      const fileName = `${attachment.ideaId}-${this.safeName(role)}-${this.safeName(attachment.kind || 'asset')}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
+      const targetPath = `${attachmentsDir}/${fileName}`;
+      fileIo.copyFileSync(sourcePath, targetPath);
+      map.set(`${attachment.ideaId}:${role}`, targetPath);
+    }
+    return map;
+  }
+
+  private attachImportedAssets(ideas: Idea[], attachmentMap: Map<string, string>): Idea[] {
+    return ideas.map((idea: Idea) => {
+      const localUri = attachmentMap.get(`${idea.id}:localUri`);
+      const previewPath = attachmentMap.get(`${idea.id}:previewPath`);
+      if (!localUri && !previewPath) {
+        return idea;
+      }
+      const nextAsset: IdeaAsset = this.copyImportedAsset(idea, localUri || '');
+      if (localUri) {
+        nextAsset.localUri = localUri;
+      }
+      if (previewPath) {
+        nextAsset.previewPath = previewPath;
+      } else if (localUri && !nextAsset.previewPath && this.isImageLikeAsset(localUri)) {
+        nextAsset.previewPath = localUri;
+      }
+      return this.copyImportedIdeaWithAsset(idea, nextAsset);
+    });
+  }
+
+  private copyImportedAsset(idea: Idea, fallbackLocalUri: string): IdeaAsset {
+    if (!idea.asset) {
+      return {
+        type: idea.type,
+        localUri: fallbackLocalUri
+      };
+    }
+    return {
+      type: idea.asset.type,
+      localUri: idea.asset.localUri,
+      mimeType: idea.asset.mimeType,
+      durationMs: idea.asset.durationMs,
+      strokes: idea.asset.strokes,
+      previewPath: idea.asset.previewPath
+    };
+  }
+
+  private copyImportedIdeaWithAsset(idea: Idea, asset: IdeaAsset): Idea {
+    return {
+      id: idea.id,
+      title: idea.title,
+      type: idea.type,
+      plainText: idea.plainText,
+      note: idea.note,
+      tags: idea.tags,
+      folderId: idea.folderId,
+      context: idea.context,
+      asset,
+      isFavorite: idea.isFavorite,
+      isArchived: idea.isArchived,
+      syncStatus: idea.syncStatus,
+      aiStatus: idea.aiStatus,
+      createdAt: idea.createdAt,
+      updatedAt: idea.updatedAt
+    };
   }
 
   private readIdeas(resultSet: relationalStore.ResultSet): Idea[] {
@@ -950,25 +1039,36 @@ export class IdeaRepository {
     const entries: IdeaBackupAttachment[] = [];
     for (const idea of ideas) {
       const asset = idea.asset;
-      if (!asset?.localUri) {
+      if (!asset) {
         continue;
       }
-      const sourcePath = this.resolveFilePath(asset.localUri);
-      if (!fileIo.accessSync(sourcePath)) {
-        continue;
+      this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'localUri', asset.localUri, attachmentsDir);
+      if (asset.previewPath && asset.previewPath !== asset.localUri) {
+        this.collectBackupAttachment(entries, idea.id, asset.type || 'asset', 'previewPath', asset.previewPath, attachmentsDir);
       }
-      const fileName = `${idea.id}-${this.safeName(asset.type || 'asset')}${this.extensionFromPath(sourcePath)}`;
-      const relativePath = `attachments/${fileName}`;
-      const destPath = `${attachmentsDir}/${fileName}`;
-      fileIo.copyFileSync(sourcePath, destPath);
-      entries.push({
-        ideaId: idea.id,
-        kind: asset.type || 'asset',
-        sourcePath,
-        relativePath
-      });
     }
     return entries;
+  }
+
+  private collectBackupAttachment(entries: IdeaBackupAttachment[], ideaId: string, kind: string, role: string, path: string, attachmentsDir: string): void {
+    if (!path) {
+      return;
+    }
+    const sourcePath = this.resolveFilePath(path);
+    if (!fileIo.accessSync(sourcePath)) {
+      return;
+    }
+    const fileName = `${ideaId}-${this.safeName(role)}-${this.safeName(kind || 'asset')}${this.extensionFromPath(sourcePath)}`;
+    const relativePath = `attachments/${fileName}`;
+    const destPath = `${attachmentsDir}/${fileName}`;
+    fileIo.copyFileSync(sourcePath, destPath);
+    entries.push({
+      ideaId,
+      kind,
+      role,
+      sourcePath,
+      relativePath
+    });
   }
 
   private readBackupManifest(extractDir: string): string {

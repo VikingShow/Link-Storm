@@ -11,6 +11,7 @@ Date: 2026-06-15
 - Capture draft state now persists through native `relationalStore` with legacy file migration fallback
 - Attachment replacement now cleans up old managed files
 - Handwriting preview state now persists through the capture draft and uses managed storage
+- ZIP backup import now restores managed attachments and handwriting preview files
 
 ## Verified milestone
 
@@ -24,6 +25,10 @@ feat(harmony): migrate capture draft persistence to relational store
 
 ```text
 feat(harmony): polish managed attachment and handwriting preview flow
+```
+
+```text
+feat(harmony): restore attachments from backup import
 ```
 
 Verification:

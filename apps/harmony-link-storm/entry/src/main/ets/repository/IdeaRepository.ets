@@ -4,12 +4,13 @@ import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
-import { CaptureDraftState, Idea, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import { CaptureDraftState, Idea, IdeaAiOutput, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_TABLE = 'ideas';
 const FOLDERS_TABLE = 'folders';
 const TAGS_TABLE = 'tags';
+const AI_OUTPUTS_TABLE = 'ai_outputs';
 const CAPTURE_DRAFT_TABLE = 'capture_draft_state';
 const CAPTURE_DRAFT_ID = 'capture_draft';
 const CAPTURE_DRAFT_KEY = 'capture_draft_json';
@@ -81,6 +82,43 @@ export class IdeaRepository {
       return this.readTags(resultSet);
     } finally {
       this.closeResultSet(resultSet);
+    }
+  }
+
+  async listAiOutputs(ideaId: string): Promise<IdeaAiOutput[]> {
+    const predicates = new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE).equalTo('ideaId', ideaId);
+    const resultSet = await this.queryRowsGuarded(predicates, '读取 AI 结果失败');
+    try {
+      return this.readAiOutputs(resultSet);
+    } finally {
+      this.closeResultSet(resultSet);
+    }
+  }
+
+  async saveAiOutput(ideaId: string, outputType: string, content: string, sourceIdeaIds: string[] = []): Promise<IdeaAiOutput> {
+    const now = new Date().toISOString();
+    const output: IdeaAiOutput = {
+      id: this.createId(),
+      ideaId,
+      outputType: outputType || 'summary',
+      content,
+      sourceIdeaIds: sourceIdeaIds.length > 0 ? sourceIdeaIds : [ideaId],
+      createdAt: now,
+      updatedAt: now
+    };
+    await this.insertRowGuarded(AI_OUTPUTS_TABLE, this.aiOutputToBucket(output), '保存 AI 结果失败');
+    await this.update(ideaId, { aiStatus: 'processed' });
+    return output;
+  }
+
+  async deleteAiOutput(outputId: string): Promise<void> {
+    const current = await this.getAiOutputById(outputId);
+    await this.deleteRowsGuarded(this.predicatesFor(AI_OUTPUTS_TABLE, outputId), '删除 AI 结果失败');
+    if (current) {
+      const remaining = await this.listAiOutputs(current.ideaId);
+      if (remaining.length === 0) {
+        await this.update(current.ideaId, { aiStatus: 'not_processed' });
+      }
     }
   }
 
@@ -412,6 +450,7 @@ export class IdeaRepository {
   async delete(id: string): Promise<void> {
     const current = await this.getById(id);
     await this.deleteRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '删除想法失败');
+    await this.deleteRowsGuarded(new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE).equalTo('ideaId', id), '删除想法 AI 结果失败');
     this.cleanupManagedIdeaAssetFiles(current?.asset);
   }
 
@@ -432,7 +471,8 @@ export class IdeaRepository {
       exportedAt: new Date().toISOString(),
       ideas: await this.list(),
       folders: await this.listFolders(),
-      tags: await this.listTags()
+      tags: await this.listTags(),
+      aiOutputs: await this.listAllAiOutputs()
     } as IdeaExportPayload, null, 2);
   }
 
@@ -493,6 +533,7 @@ export class IdeaRepository {
         ideas,
         folders: await this.listFolders(),
         tags: await this.listTags(),
+        aiOutputs: await this.listAllAiOutputs(),
         attachments: await this.collectBackupAttachments(ideas, attachmentsDir)
       };
       this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
@@ -545,6 +586,9 @@ export class IdeaRepository {
       if (Array.isArray(parsed.tags)) {
         await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags, strategy));
       }
+      if (Array.isArray(parsed.aiOutputs)) {
+        await this.replaceAiOutputs(this.mergeAiOutputs(await this.listAllAiOutputs(), parsed.aiOutputs, strategy));
+      }
       return merged;
     } finally {
       this.cleanupBackupTemp(tempRoot);
@@ -570,6 +614,9 @@ export class IdeaRepository {
     }
     if (Array.isArray(parsed.tags)) {
       await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags as IdeaTag[], strategy));
+    }
+    if (Array.isArray(parsed.aiOutputs)) {
+      await this.replaceAiOutputs(this.mergeAiOutputs(await this.listAllAiOutputs(), parsed.aiOutputs as IdeaAiOutput[], strategy));
     }
     return merged;
   }
@@ -685,6 +732,15 @@ export class IdeaRepository {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )`, '初始化标签表失败');
+    await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${AI_OUTPUTS_TABLE} (
+      id TEXT PRIMARY KEY,
+      ideaId TEXT NOT NULL,
+      outputType TEXT NOT NULL,
+      content TEXT NOT NULL,
+      sourceIdeaIds TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )`, '初始化 AI 结果表失败');
     await this.executeSqlGuarded(`CREATE TABLE IF NOT EXISTS ${CAPTURE_DRAFT_TABLE} (
       id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
@@ -727,6 +783,13 @@ export class IdeaRepository {
     await this.deleteTableRowsGuarded(TAGS_TABLE, '清空标签表失败');
     for (const item of items) {
       await this.insertRowGuarded(TAGS_TABLE, this.tagToBucket(item), '写入标签数据失败');
+    }
+  }
+
+  private async replaceAiOutputs(items: IdeaAiOutput[]): Promise<void> {
+    await this.deleteTableRowsGuarded(AI_OUTPUTS_TABLE, '清空 AI 结果表失败');
+    for (const item of items) {
+      await this.insertRowGuarded(AI_OUTPUTS_TABLE, this.aiOutputToBucket(item), '写入 AI 结果数据失败');
     }
   }
 
@@ -853,6 +916,18 @@ export class IdeaRepository {
     return items.sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
+  private readAiOutputs(resultSet: relationalStore.ResultSet): IdeaAiOutput[] {
+    const items: IdeaAiOutput[] = [];
+    while (this.goToNextRow(resultSet)) {
+      try {
+        items.push(this.rowToAiOutput(resultSet));
+      } catch {
+        // Skip rows that cannot be converted into a valid AI output.
+      }
+    }
+    return items.sort((a: IdeaAiOutput, b: IdeaAiOutput) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
   private rowToIdea(resultSet: relationalStore.ResultSet): Idea {
     const now = new Date().toISOString();
     return {
@@ -901,6 +976,19 @@ export class IdeaRepository {
     };
   }
 
+  private rowToAiOutput(resultSet: relationalStore.ResultSet): IdeaAiOutput {
+    const now = new Date().toISOString();
+    return {
+      id: this.readString(resultSet, 'id', this.createId()),
+      ideaId: this.readString(resultSet, 'ideaId'),
+      outputType: this.readString(resultSet, 'outputType', 'summary'),
+      content: this.readString(resultSet, 'content'),
+      sourceIdeaIds: this.parseStringArrayJson(this.readString(resultSet, 'sourceIdeaIds', '[]')),
+      createdAt: this.readString(resultSet, 'createdAt', now),
+      updatedAt: this.readString(resultSet, 'updatedAt', now)
+    };
+  }
+
   private ideaToBucket(idea: Idea): ValuesBucket {
     return {
       id: idea.id,
@@ -941,6 +1029,18 @@ export class IdeaRepository {
       color: tag.color,
       createdAt: tag.createdAt,
       updatedAt: tag.updatedAt
+    };
+  }
+
+  private aiOutputToBucket(output: IdeaAiOutput): ValuesBucket {
+    return {
+      id: output.id,
+      ideaId: output.ideaId,
+      outputType: output.outputType,
+      content: output.content,
+      sourceIdeaIds: JSON.stringify(output.sourceIdeaIds),
+      createdAt: output.createdAt,
+      updatedAt: output.updatedAt
     };
   }
 
@@ -1074,14 +1174,27 @@ export class IdeaRepository {
   }
 
   private parseTagsJson(value: string): string[] {
+    return this.parseStringArrayJson(value);
+  }
+
+  private parseStringArrayJson(value: string): string[] {
     try {
       const parsed = JSON.parse(value) as string[];
       if (!Array.isArray(parsed)) {
         return [];
       }
-      return parsed.filter((tag: string) => typeof tag === 'string');
+      return parsed.filter((item: string) => typeof item === 'string');
     } catch {
       return [];
+    }
+  }
+
+  private async listAllAiOutputs(): Promise<IdeaAiOutput[]> {
+    const resultSet = await this.queryRowsGuarded(new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE), '读取 AI 结果列表失败');
+    try {
+      return this.readAiOutputs(resultSet);
+    } finally {
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -1099,6 +1212,16 @@ export class IdeaRepository {
     const resultSet = await this.queryRowsGuarded(this.predicatesFor(TAGS_TABLE, id), '读取标签详情失败');
     try {
       const items = this.readTags(resultSet);
+      return items.length > 0 ? items[0] : undefined;
+    } finally {
+      this.closeResultSet(resultSet);
+    }
+  }
+
+  private async getAiOutputById(id: string): Promise<IdeaAiOutput | undefined> {
+    const resultSet = await this.queryRowsGuarded(this.predicatesFor(AI_OUTPUTS_TABLE, id), '读取 AI 结果详情失败');
+    try {
+      const items = this.readAiOutputs(resultSet);
       return items.length > 0 ? items[0] : undefined;
     } finally {
       this.closeResultSet(resultSet);
@@ -1309,6 +1432,23 @@ export class IdeaRepository {
       }
     }
     return Array.from(map.values()).sort((a: IdeaTag, b: IdeaTag) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+
+  private mergeAiOutputs(existing: IdeaAiOutput[], incoming: IdeaAiOutput[], strategy: ImportConflictStrategy): IdeaAiOutput[] {
+    const map = new Map<string, IdeaAiOutput>();
+    for (const output of existing) {
+      map.set(output.id, output);
+    }
+    for (const output of incoming) {
+      if (!output || typeof output.id !== 'string') {
+        continue;
+      }
+      const current = map.get(output.id);
+      if (!current || strategy === ImportConflictStrategy.FORCE_OVERWRITE || Date.parse(output.updatedAt) > Date.parse(current.updatedAt)) {
+        map.set(output.id, output);
+      }
+    }
+    return Array.from(map.values()).sort((a: IdeaAiOutput, b: IdeaAiOutput) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
 
   private async collectBackupAttachments(ideas: Idea[], attachmentsDir: string): Promise<IdeaBackupAttachment[]> {

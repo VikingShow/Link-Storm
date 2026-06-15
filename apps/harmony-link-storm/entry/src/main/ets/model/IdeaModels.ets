@@ -49,6 +49,16 @@ export interface IdeaAsset {
   previewPath?: string;
 }
 
+export interface IdeaAiOutput {
+  id: string;
+  ideaId: string;
+  outputType: string;
+  content: string;
+  sourceIdeaIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Idea {
   id: string;
   title: string;
@@ -105,6 +115,7 @@ export interface IdeaExportPayload {
   ideas: Idea[];
   folders: IdeaFolder[];
   tags: IdeaTag[];
+  aiOutputs?: IdeaAiOutput[];
 }
 
 export interface IdeaBackupPayload {
@@ -114,6 +125,7 @@ export interface IdeaBackupPayload {
   ideas: Idea[];
   folders: IdeaFolder[];
   tags: IdeaTag[];
+  aiOutputs?: IdeaAiOutput[];
   attachments: IdeaBackupAttachment[];
 }
 

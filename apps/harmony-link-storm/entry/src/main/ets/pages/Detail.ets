@@ -1,7 +1,7 @@
 import Want from '@ohos.app.ability.Want';
 import { common } from '@kit.AbilityKit';
 import fileUri from '@ohos.file.fileuri';
-import { Idea, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
+import { Idea, IdeaAiOutput, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
 import { ideaRepository } from '../repository/IdeaRepository';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
 
@@ -31,6 +31,9 @@ struct Detail {
   @State private playbackState: string = 'idle';
   @State private status: string = '';
   @State private attachmentStatus: string = '';
+  @State private aiOutputs: IdeaAiOutput[] = [];
+  @State private aiSummaryDraft: string = '';
+  @State private aiStatusMessage: string = '';
 
   async aboutToAppear(): Promise<void> {
     const params = this.getUIContext().getRouter().getParams() as DetailParams;
@@ -155,6 +158,7 @@ struct Detail {
             .fontSize(12)
         }
         this.AssetSection()
+        this.AiOutputSection()
         TextInput({ text: this.title, placeholder: '标题' })
           .onChange((value: string) => this.title = value)
         TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })
@@ -276,6 +280,7 @@ struct Detail {
     this.playbackState = audioPlaybackService.getState();
     this.attachmentStatus = '';
     this.status = '';
+    await this.reloadAiOutputs();
   }
 
   private getAsset(): IdeaAsset | undefined {
@@ -356,6 +361,130 @@ struct Detail {
       current.add(tag);
     }
     this.tags = Array.from(current.values()).join(', ');
+  }
+
+  @Builder
+  private AiOutputSection() {
+    Column({ space: 8 }) {
+      Text('AI 整理预留')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+      Text('结果保存在独立记录中，不覆盖原始想法。')
+        .fontSize(12)
+        .fontColor('#667085')
+      TextArea({ text: this.aiSummaryDraft, placeholder: '手动录入或粘贴后续 AI 摘要' })
+        .height(90)
+        .onChange((value: string) => this.aiSummaryDraft = value)
+      Row({ space: 8 }) {
+        Button('保存摘要')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .enabled(this.aiSummaryDraft.trim().length > 0)
+          .onClick(async () => {
+            await this.saveAiSummaryDraft();
+          })
+        Button('刷新结果')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            await this.reloadAiOutputs();
+          })
+      }
+      if (this.aiOutputs.length > 0) {
+        ForEach(this.aiOutputs, (output: IdeaAiOutput) => {
+          Column({ space: 6 }) {
+            Row({ space: 8 }) {
+              Text(this.aiOutputTypeLabel(output.outputType))
+                .fontSize(12)
+                .fontColor('#136F63')
+                .fontWeight(FontWeight.Bold)
+              Text(`来源：${output.sourceIdeaIds.join(', ')}`)
+                .fontSize(11)
+                .fontColor('#667085')
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              Button('删除')
+                .buttonStyle(ButtonStyleMode.NORMAL)
+                .fontColor('#B42318')
+                .onClick(async () => {
+                  await this.deleteAiOutput(output.id);
+                })
+            }
+            Text(output.content)
+              .fontSize(13)
+              .fontColor('#1F2937')
+          }
+          .padding(10)
+          .width('100%')
+          .backgroundColor('#FFFFFF')
+          .border({ width: 1, color: '#D8DDE6' })
+          .borderRadius(8)
+        }, (output: IdeaAiOutput) => output.id)
+      }
+      if (this.aiStatusMessage.length > 0) {
+        Text(this.aiStatusMessage)
+          .fontSize(12)
+          .fontColor('#667085')
+      }
+    }
+    .padding(12)
+    .width('100%')
+    .backgroundColor('#FBFCFD')
+    .border({ width: 1, color: '#D8DDE6' })
+    .borderRadius(8)
+  }
+
+  private async reloadAiOutputs(): Promise<void> {
+    if (!this.ideaId) {
+      this.aiOutputs = [];
+      return;
+    }
+    this.aiOutputs = await ideaRepository.listAiOutputs(this.ideaId);
+  }
+
+  private async saveAiSummaryDraft(): Promise<void> {
+    const content = this.aiSummaryDraft.trim();
+    if (content.length === 0) {
+      return;
+    }
+    try {
+      await ideaRepository.saveAiOutput(this.ideaId, 'summary', content, [this.ideaId]);
+      this.aiSummaryDraft = '';
+      this.aiStatusMessage = 'AI 摘要已保存';
+      await this.reloadAiOutputs();
+      await this.reload();
+    } catch (err) {
+      this.aiStatusMessage = `保存 AI 摘要失败：${String(err)}`;
+    }
+  }
+
+  private async deleteAiOutput(outputId: string): Promise<void> {
+    try {
+      await ideaRepository.deleteAiOutput(outputId);
+      this.aiStatusMessage = 'AI 结果已删除';
+      await this.reloadAiOutputs();
+      await this.reload();
+    } catch (err) {
+      this.aiStatusMessage = `删除 AI 结果失败：${String(err)}`;
+    }
+  }
+
+  private aiOutputTypeLabel(type: string): string {
+    if (type === 'summary') {
+      return '摘要';
+    }
+    if (type === 'transcription') {
+      return '转写';
+    }
+    if (type === 'ocr') {
+      return 'OCR';
+    }
+    if (type === 'action_items') {
+      return '行动项';
+    }
+    if (type === 'tags') {
+      return '自动标签';
+    }
+    return type;
   }
 
   @Builder

@@ -156,10 +156,20 @@ struct Index {
         .buttonStyle(ButtonStyleMode.NORMAL)
         .onClick(async () => {
           try {
-            await this.shareIdeas();
+            await this.shareIdeasAsPlainText();
             this.exportStatus = '已打开系统分享面板';
           } catch (err) {
             this.exportStatus = `分享失败：${String(err)}`;
+          }
+        })
+      Button('Markdown')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          try {
+            await this.shareIdeasAsMarkdown();
+            this.exportStatus = '已打开 Markdown 分享面板';
+          } catch (err) {
+            this.exportStatus = `Markdown 分享失败：${String(err)}`;
           }
         })
       Button('截图兜底')
@@ -1132,17 +1142,23 @@ struct Index {
     .borderRadius(8)
   }
 
-  private async shareIdeas(): Promise<void> {
+  private async shareIdeasAsPlainText(): Promise<void> {
+    const items = this.shareTargetIdeas();
+    await this.shareTextContent(this.buildShareText(items), 'Link Storm', `分享${items.length}条本地想法`);
+  }
+
+  private async shareIdeasAsMarkdown(): Promise<void> {
+    const items = this.shareTargetIdeas();
+    await this.shareTextContent(this.buildMarkdownExport(items), 'Link Storm Markdown', `Markdown 导出 ${items.length} 条本地想法`);
+  }
+
+  private async shareTextContent(content: string, title: string, description: string): Promise<void> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const items = this.selectedIds.length > 0
-      ? this.ideas.filter((idea: Idea) => this.selectedIds.includes(idea.id))
-      : this.filteredIdeas();
-    const content = this.buildShareText(items);
     const shareData = new systemShare.SharedData({
       utd: utd.UniformDataType.PLAIN_TEXT,
       content: content,
-      title: 'Link Storm',
-      description: `分享${items.length}条本地想法`
+      title,
+      description
     });
     const controller = new systemShare.ShareController(shareData);
     const options: ShareOptions = {
@@ -1150,6 +1166,13 @@ struct Index {
       selectionMode: systemShare.SelectionMode.SINGLE
     };
     await this.showSharePanelGuarded(controller, context, options);
+  }
+
+  private shareTargetIdeas(): Idea[] {
+    if (this.selectedIds.length > 0) {
+      return this.ideas.filter((idea: Idea) => this.selectedIds.includes(idea.id));
+    }
+    return this.filteredIdeas();
   }
 
   private async captureScreenshotFallback(): Promise<ScreenshotFallbackResult> {
@@ -1205,6 +1228,47 @@ struct Index {
       }
     }
     return lines.join('\n');
+  }
+
+  private buildMarkdownExport(items: Idea[]): string {
+    if (items.length === 0) {
+      return '# Link Storm\n\n当前没有可导出的记录。\n';
+    }
+    const lines: string[] = [
+      '# Link Storm 导出',
+      '',
+      `导出时间：${new Date().toLocaleString()}`,
+      `记录数量：${items.length}`,
+      ''
+    ];
+    for (const idea of items) {
+      lines.push(`## ${this.escapeMarkdown(idea.title)}`);
+      lines.push('');
+      lines.push(`- 类型：${ideaTypeLabel(idea.type)}`);
+      lines.push(`- 创建时间：${new Date(idea.createdAt).toLocaleString()}`);
+      lines.push(`- 更新时间：${new Date(idea.updatedAt).toLocaleString()}`);
+      if (idea.tags.length > 0) {
+        lines.push(`- 标签：${idea.tags.map((tag: string) => this.escapeMarkdown(tag)).join('、')}`);
+      }
+      if (idea.context.title.length > 0) {
+        lines.push(`- 来源标题：${this.escapeMarkdown(idea.context.title)}`);
+      }
+      if (idea.context.url.length > 0) {
+        lines.push(`- 来源链接：${idea.context.url}`);
+      }
+      if (idea.asset?.localUri) {
+        lines.push(`- 附件：${idea.asset.localUri}`);
+      }
+      lines.push('');
+      const body = idea.plainText || idea.note || this.previewText(idea);
+      lines.push(body);
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  private escapeMarkdown(value: string): string {
+    return value.replace(/([\\`*_{}\[\]()#+\-.!|>])/g, '\\$1');
   }
 
   private previewText(idea: Idea): string {

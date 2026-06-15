@@ -1356,12 +1356,28 @@ export class IdeaRepository {
     if (this.fileExists(nestedManifest)) {
       return this.readTextFileGuarded(nestedManifest, '读取备份清单失败');
     }
-    throw new Error('Backup manifest not found');
+    throw new Error('未找到备份清单');
   }
 
   private cleanupBackupTemp(tempRoot: string): void {
+    this.removeDirectoryTree(tempRoot);
+  }
+
+  private removeDirectoryTree(path: string): void {
+    if (!this.fileExists(path)) {
+      return;
+    }
     try {
-      fileIo.rmdirSync(tempRoot);
+      const stat = fileIo.statSync(path);
+      if (!stat.isDirectory()) {
+        fileIo.unlinkSync(path);
+        return;
+      }
+      const names = fileIo.listFileSync(path);
+      for (const name of names) {
+        this.removeDirectoryTree(`${path}/${name}`);
+      }
+      fileIo.rmdirSync(path);
     } catch {
       return;
     }

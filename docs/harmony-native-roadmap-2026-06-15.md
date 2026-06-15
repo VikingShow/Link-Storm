@@ -43,6 +43,7 @@ Date: 2026-06-15
 - Deleting an idea now removes managed local attachment and preview files
 - Import replacement now cleans up managed attachment files no longer referenced by imported ideas
 - Cross-app share capture now accepts sendData/sendMultipleData intents and imports the first local shared file/image into managed idea attachment storage
+- ZIP backup export/import temp directories now clean up recursively after compression or extraction
 
 ## Verified milestone
 
@@ -186,6 +187,10 @@ feat(harmony): cleanup replaced import attachments
 feat(harmony): attach shared files to captured ideas
 ```
 
+```text
+feat(harmony): cleanup backup temp directories
+```
+
 Verification:
 
 ```text
@@ -223,8 +228,9 @@ Project signing remains intentionally unconfigured.
 2. Validate share capture from browser, gallery, file manager, and chat apps on a physical HarmonyOS device
 3. Continue scanning for remaining visible text and status feedback gaps on device
 4. Continue splitting remaining draft/file helpers from the main RDB path
-5. Validate audio capture and playback on a physical HarmonyOS device
-6. Confirm whether the microphone static warning can be suppressed beyond the existing permission declaration
+5. Validate backup export/import on a physical HarmonyOS device with large attachments
+6. Validate audio capture and playback on a physical HarmonyOS device
+7. Confirm whether the microphone static warning can be suppressed beyond the existing permission declaration
 
 ## Git workflow
 

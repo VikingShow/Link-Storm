@@ -19,6 +19,7 @@ export class AudioRecordService {
   private currentPath = '';
   private avRecorder: media.AVRecorder | undefined;
   private fileHandle: fileIo.File | undefined;
+  private lastError: string = '';
 
   static getInstance(context?: common.UIAbilityContext): AudioRecordService {
     if (!AudioRecordService.instance) {
@@ -75,9 +76,13 @@ export class AudioRecordService {
       this.startedAt = Date.now();
       this.elapsedBeforePause = 0;
       this.state = 'recording';
-    } catch {
+      this.lastError = '';
+    } catch (err) {
       this.cleanupRecorder();
-      throw new Error('Failed to start audio recording');
+      this.removeCurrentFile();
+      this.resetSession();
+      this.lastError = `Failed to start audio recording: ${String(err)}`;
+      throw new Error(this.lastError);
     }
   }
 
@@ -88,10 +93,16 @@ export class AudioRecordService {
     if (!this.avRecorder) {
       throw new Error('Recorder is not initialized');
     }
-    await this.avRecorder.pause();
-    this.elapsedBeforePause += Date.now() - this.startedAt;
-    this.startedAt = 0;
-    this.state = 'paused';
+    try {
+      await this.avRecorder.pause();
+      this.elapsedBeforePause += Date.now() - this.startedAt;
+      this.startedAt = 0;
+      this.state = 'paused';
+      this.lastError = '';
+    } catch (err) {
+      this.lastError = `Failed to pause audio recording: ${String(err)}`;
+      throw new Error(this.lastError);
+    }
   }
 
   async resume(): Promise<void> {
@@ -101,9 +112,15 @@ export class AudioRecordService {
     if (!this.avRecorder) {
       throw new Error('Recorder is not initialized');
     }
-    await this.avRecorder.resume();
-    this.startedAt = Date.now();
-    this.state = 'recording';
+    try {
+      await this.avRecorder.resume();
+      this.startedAt = Date.now();
+      this.state = 'recording';
+      this.lastError = '';
+    } catch (err) {
+      this.lastError = `Failed to resume audio recording: ${String(err)}`;
+      throw new Error(this.lastError);
+    }
   }
 
   async stop(): Promise<AudioRecordResult> {
@@ -114,18 +131,20 @@ export class AudioRecordService {
     const durationMs = this.totalDurationMs();
     try {
       await this.avRecorder?.stop();
+    } catch (err) {
+      this.lastError = `Failed to stop audio recording: ${String(err)}`;
+      throw new Error(this.lastError);
     } finally {
       await this.avRecorder?.release();
       this.cleanupRecorder();
-      this.state = 'idle';
-      this.startedAt = 0;
-      this.elapsedBeforePause = 0;
+      this.resetTiming();
     }
     const result: AudioRecordResult = {
       path: resultPath,
       mimeType: 'audio/mp4',
       durationMs: Math.max(1, durationMs)
     };
+    this.lastError = '';
     return result;
   }
 
@@ -141,10 +160,8 @@ export class AudioRecordService {
       await this.avRecorder?.release();
       this.cleanupRecorder();
       this.removeCurrentFile();
-      this.state = 'idle';
-      this.startedAt = 0;
-      this.elapsedBeforePause = 0;
-      this.currentPath = '';
+      this.resetSession();
+      this.lastError = '';
     }
   }
 
@@ -154,6 +171,10 @@ export class AudioRecordService {
 
   getElapsedMs(): number {
     return this.totalDurationMs();
+  }
+
+  getLastError(): string {
+    return this.lastError;
   }
 
   private cleanupRecorder(): void {
@@ -175,6 +196,17 @@ export class AudioRecordService {
     } catch {
       // Ignore file cleanup errors during cancellation.
     }
+  }
+
+  private resetTiming(): void {
+    this.state = 'idle';
+    this.startedAt = 0;
+    this.elapsedBeforePause = 0;
+  }
+
+  private resetSession(): void {
+    this.resetTiming();
+    this.currentPath = '';
   }
 
   private totalDurationMs(): number {

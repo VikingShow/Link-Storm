@@ -389,11 +389,29 @@ struct Index {
             .onClick(async () => {
               await this.startAudioCapture();
             })
-          Button('停止录音')
+          Button('暂停')
             .buttonStyle(ButtonStyleMode.NORMAL)
             .enabled(this.audioRecorderState === 'recording')
             .onClick(async () => {
+              await this.pauseAudioCapture();
+            })
+          Button('继续')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.audioRecorderState === 'paused')
+            .onClick(async () => {
+              await this.resumeAudioCapture();
+            })
+          Button('完成')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.audioRecorderState === 'recording' || this.audioRecorderState === 'paused')
+            .onClick(async () => {
               await this.stopAudioCapture();
+            })
+          Button('取消')
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .enabled(this.audioRecorderState === 'recording' || this.audioRecorderState === 'paused')
+            .onClick(async () => {
+              await this.cancelAudioCapture();
             })
         }
         if (this.audioPath.length > 0) {
@@ -867,6 +885,7 @@ struct Index {
     this.audioStatus = '录音能力预留，后续接入 AVRecorder';
     this.audioPath = '';
     this.audioDurationMs = 0;
+    this.audioRecorderState = 'idle';
     this.handwritingText = '手写能力预留，当前已接入 Canvas';
     this.clearHandwriting(preserveHandwritingPreview);
   }
@@ -1356,41 +1375,83 @@ struct Index {
     const permissionService = PermissionService.getInstance(context);
     const granted = await permissionService.requestMicrophone();
     if (!granted) {
-      this.audioStatus = '????????????';
+      this.audioStatus = '未获得麦克风权限';
+      this.syncAudioRecorderState();
+      await this.persistCaptureDraft();
       return;
     }
-    this.audioStatus = '??????...';
-    await audioRecordService.start();
-    this.audioRecorderState = 'recording';
-    this.audioStatus = '?????';
+    this.audioStatus = '正在启动录音...';
+    try {
+      await audioRecordService.start();
+      this.audioRecorderState = 'recording';
+      this.audioStatus = '录音中';
+    } catch (err) {
+      this.syncAudioRecorderState();
+      this.audioStatus = this.formatAudioError('录音启动失败', err);
+    }
+    await this.persistCaptureDraft();
   }
 
   private async pauseAudioCapture(): Promise<void> {
-    await audioRecordService.pause();
-    this.audioRecorderState = 'paused';
-    this.audioStatus = '?????????';
+    try {
+      await audioRecordService.pause();
+      this.audioRecorderState = 'paused';
+      this.audioStatus = '录音已暂停';
+    } catch (err) {
+      this.syncAudioRecorderState();
+      this.audioStatus = this.formatAudioError('暂停录音失败', err);
+    }
+    await this.persistCaptureDraft();
   }
 
   private async resumeAudioCapture(): Promise<void> {
-    await audioRecordService.resume();
-    this.audioRecorderState = 'recording';
-    this.audioStatus = '??????';
+    try {
+      await audioRecordService.resume();
+      this.audioRecorderState = 'recording';
+      this.audioStatus = '录音中';
+    } catch (err) {
+      this.syncAudioRecorderState();
+      this.audioStatus = this.formatAudioError('继续录音失败', err);
+    }
+    await this.persistCaptureDraft();
   }
 
   private async stopAudioCapture(): Promise<void> {
-    const result = await audioRecordService.stop();
-    this.audioPath = result.path;
-    this.audioDurationMs = result.durationMs;
-    this.audioRecorderState = 'idle';
-    this.audioStatus = `?????${Math.round(result.durationMs / 1000)} ??`;
+    try {
+      const result = await audioRecordService.stop();
+      this.audioPath = result.path;
+      this.audioDurationMs = result.durationMs;
+      this.audioRecorderState = 'idle';
+      this.audioStatus = `录音完成 ${Math.round(result.durationMs / 1000)} 秒`;
+    } catch (err) {
+      this.syncAudioRecorderState();
+      this.audioStatus = this.formatAudioError('保存录音失败', err);
+    }
+    await this.persistCaptureDraft();
   }
 
   private async cancelAudioCapture(): Promise<void> {
-    await audioRecordService.cancel();
-    this.audioRecorderState = 'idle';
-    this.audioPath = '';
-    this.audioDurationMs = 0;
-    this.audioStatus = '????????';
+    try {
+      await audioRecordService.cancel();
+      this.audioRecorderState = 'idle';
+      this.audioPath = '';
+      this.audioDurationMs = 0;
+      this.audioStatus = '录音已取消';
+    } catch (err) {
+      this.syncAudioRecorderState();
+      this.audioStatus = this.formatAudioError('取消录音失败', err);
+    }
+    await this.persistCaptureDraft();
+  }
+
+  private syncAudioRecorderState(): void {
+    this.audioRecorderState = audioRecordService.getState();
+  }
+
+  private formatAudioError(prefix: string, err: Object): string {
+    const serviceError = audioRecordService.getLastError();
+    const detail = serviceError.length > 0 ? serviceError : String(err);
+    return `${prefix}: ${detail}`;
   }
 
   private applyShareCapture(): void {

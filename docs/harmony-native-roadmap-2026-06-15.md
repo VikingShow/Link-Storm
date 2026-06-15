@@ -13,6 +13,7 @@ Date: 2026-06-15
 - Handwriting preview state now persists through the capture draft and uses managed storage
 - ZIP backup import now restores managed attachments and handwriting preview files
 - Floating ball service now keeps state consistent and records graceful fallback errors
+- Audio capture now exposes start, pause, resume, finish, and cancel controls with state recovery
 
 ## Verified milestone
 
@@ -36,6 +37,10 @@ feat(harmony): restore attachments from backup import
 feat(harmony): harden floating ball fallback state
 ```
 
+```text
+feat(harmony): harden audio capture state flow
+```
+
 Verification:
 
 ```text
@@ -50,10 +55,10 @@ BUILD SUCCESSFUL
 
 ## Next milestones
 
-1. Tighten attachment persistence and replacement behavior
-2. Finish handwriting preview and saved asset flow
+1. Harden audio playback lifecycle and detail-page playback error feedback
+2. Revisit AVRecorder file-handle exception warnings and permission handling on device
 3. Continue splitting remaining draft/file helpers from the main RDB path
-4. Add export/import handling in the native app
+4. Add signing/profile notes for repeatable local HAP generation
 5. Revisit remaining SDK compatibility warnings after feature parity improves
 
 ## Git workflow

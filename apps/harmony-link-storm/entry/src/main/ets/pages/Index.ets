@@ -1139,8 +1139,8 @@ struct Index {
     try {
       fileIo.writeSync(file.fd, data);
     } finally {
-      fileIo.closeSync(file);
-      await pixelMap.release();
+      this.closeFileQuietly(file);
+      await this.releasePixelMapQuietly(pixelMap);
     }
 
     const asset: IdeaAsset = {
@@ -1283,10 +1283,26 @@ struct Index {
     try {
       fileIo.writeSync(file.fd, data);
     } finally {
-      fileIo.closeSync(file);
-      await pixelMap.release();
+      this.closeFileQuietly(file);
+      await this.releasePixelMapQuietly(pixelMap);
     }
     return previewPath;
+  }
+
+  private closeFileQuietly(file: fileIo.File): void {
+    try {
+      fileIo.closeSync(file);
+    } catch {
+      // Preserve the original screenshot or preview save failure.
+    }
+  }
+
+  private async releasePixelMapQuietly(pixelMap: image.PixelMap): Promise<void> {
+    try {
+      await pixelMap.release();
+    } catch {
+      // Preserve the original screenshot or preview save failure.
+    }
   }
 
   private removeManagedHandwritingPreview(pathToRemove?: string): void {

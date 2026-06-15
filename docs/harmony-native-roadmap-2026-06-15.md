@@ -24,6 +24,7 @@ Date: 2026-06-15
 - Repository fallback titles and import/export errors now use localized Chinese messages
 - Home-page audio and handwriting status text now reflects the implemented native capture flow
 - Audio recording, playback, and floating-ball service errors now surface localized Chinese messages
+- Screenshot fallback and handwriting preview saves now guard cleanup failures
 
 ## Verified milestone
 
@@ -89,6 +90,10 @@ fix(harmony): align home capture status copy
 
 ```text
 fix(harmony): localize native service errors
+```
+
+```text
+feat(harmony): guard capture preview cleanup
 ```
 
 Verification:

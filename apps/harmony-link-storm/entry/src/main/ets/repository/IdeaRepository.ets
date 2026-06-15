@@ -496,6 +496,32 @@ export class IdeaRepository {
     return this.exportTextContentToFile(content, `link-storm-export-${this.timestampStamp()}${TXT_EXPORT_FILE_SUFFIX}`, ['Text|txt']);
   }
 
+  async exportTextToPickedFile(content: string, fileName: string, fileSuffixChoices: string[]): Promise<string> {
+    return this.exportTextContentToFile(content, fileName, fileSuffixChoices);
+  }
+
+  async exportAttachmentToPickedFile(sourcePath: string, fileName: string, fileSuffixChoices: string[]): Promise<string> {
+    const context = this.ensureContext();
+    const pickerInstance = new picker.DocumentViewPicker(context);
+    const uris = await pickerInstance.save({
+      newFileNames: [fileName],
+      defaultFilePathUri: fileUri.getUriFromPath(context.filesDir),
+      fileSuffixChoices
+    });
+    if (uris.length === 0) {
+      throw new Error('已取消导出');
+    }
+    const source = this.resolveFilePath(sourcePath);
+    const target = uris[0];
+    const targetPath = this.resolveFilePath(target);
+    try {
+      fileIo.copyFileSync(source, targetPath);
+    } catch (err) {
+      throw new Error(`导出附件失败：${String(err)}`);
+    }
+    return target;
+  }
+
   private async exportTextContentToFile(content: string, fileName: string, fileSuffixChoices: string[]): Promise<string> {
     const context = this.ensureContext();
     const pickerInstance = new picker.DocumentViewPicker(context);

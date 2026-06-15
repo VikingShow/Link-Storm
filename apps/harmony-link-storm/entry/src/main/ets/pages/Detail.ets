@@ -565,6 +565,26 @@ struct Detail {
             }
           })
       }
+      Row({ space: 8 }) {
+        Button('导出附件')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .enabled(this.assetLocalUri.length > 0)
+          .onClick(async () => {
+            await this.exportCurrentAttachment();
+          })
+        Button('导出预览图')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .enabled(this.assetPreviewPath.length > 0)
+          .onClick(async () => {
+            await this.exportPreviewImage();
+          })
+        Button('导出手写JSON')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .enabled((this.getAsset()?.strokes?.length ?? 0) > 0)
+          .onClick(async () => {
+            await this.exportHandwritingJson();
+          })
+      }
       if (this.attachmentStatus.length > 0) {
         Text(this.attachmentStatus)
           .fontSize(12)
@@ -590,6 +610,76 @@ struct Detail {
       previewPath: this.assetPreviewPath || undefined
     };
     return asset;
+  }
+
+  private async exportCurrentAttachment(): Promise<void> {
+    const path = this.assetLocalUri;
+    if (path.length === 0) {
+      this.attachmentStatus = '没有可导出的附件';
+      return;
+    }
+    try {
+      const uri = await ideaRepository.exportAttachmentToPickedFile(path, this.exportFileNameForPath(path, 'attachment'), [this.fileSuffixChoice(path)]);
+      this.attachmentStatus = `附件已导出：${uri}`;
+    } catch (err) {
+      this.attachmentStatus = `导出附件失败：${String(err)}`;
+    }
+  }
+
+  private async exportPreviewImage(): Promise<void> {
+    const path = this.assetPreviewPath;
+    if (path.length === 0) {
+      this.attachmentStatus = '没有可导出的预览图';
+      return;
+    }
+    try {
+      const uri = await ideaRepository.exportAttachmentToPickedFile(path, this.exportFileNameForPath(path, 'preview.png'), [this.fileSuffixChoice(path)]);
+      this.attachmentStatus = `预览图已导出：${uri}`;
+    } catch (err) {
+      this.attachmentStatus = `导出预览图失败：${String(err)}`;
+    }
+  }
+
+  private async exportHandwritingJson(): Promise<void> {
+    const asset = this.getAsset();
+    if (!asset?.strokes || asset.strokes.length === 0) {
+      this.attachmentStatus = '没有可导出的手写笔迹';
+      return;
+    }
+    const payload = JSON.stringify({
+      schema: 'link-storm-handwriting',
+      version: 1,
+      ideaId: this.ideaId,
+      exportedAt: new Date().toISOString(),
+      strokes: asset.strokes
+    }, null, 2);
+    try {
+      const uri = await ideaRepository.exportTextToPickedFile(payload, `link-storm-handwriting-${this.safeFileName(this.title || this.ideaId)}.json`, ['JSON|json']);
+      this.attachmentStatus = `手写 JSON 已导出：${uri}`;
+    } catch (err) {
+      this.attachmentStatus = `导出手写 JSON 失败：${String(err)}`;
+    }
+  }
+
+  private exportFileNameForPath(path: string, fallback: string): string {
+    const normalized = path.trim();
+    const slash = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+    const name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+    return this.safeFileName(name || fallback);
+  }
+
+  private fileSuffixChoice(path: string): string {
+    const name = this.exportFileNameForPath(path, 'attachment');
+    const dot = name.lastIndexOf('.');
+    if (dot < 0 || dot === name.length - 1) {
+      return 'File|*';
+    }
+    const suffix = name.substring(dot + 1);
+    return `${suffix.toUpperCase()}|${suffix}`;
+  }
+
+  private safeFileName(value: string): string {
+    return value.replace(/[\\/:*?"<>|]/g, '_');
   }
 
   private async refreshFolders(): Promise<void> {

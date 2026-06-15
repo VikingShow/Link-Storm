@@ -48,6 +48,7 @@ Date: 2026-06-15
 - ZIP backup export now uses a single idea snapshot for manifest data and attachment collection
 - Capture and detail editing now use named folder pickers with an explicit no-folder option
 - AI organization results now have a native RDB table, import/export support, and editable detail-page placeholders that do not overwrite original ideas
+- Detail page now exports the current attachment, handwriting preview PNG, and handwriting strokes JSON through the native document picker
 
 ## Verified milestone
 
@@ -209,6 +210,10 @@ feat(harmony): pick named folders in editors
 
 ```text
 feat(harmony): persist editable ai outputs
+```
+
+```text
+feat(harmony): export detail attachments
 ```
 
 Verification:

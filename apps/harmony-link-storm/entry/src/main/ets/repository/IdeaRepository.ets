@@ -112,7 +112,17 @@ export class IdeaRepository {
   }
 
   async deleteTag(id: string): Promise<void> {
+    const current = await this.getTagById(id);
     await this.deleteRowsGuarded(this.predicatesFor(TAGS_TABLE, id), '删除标签失败');
+    if (!current) {
+      return;
+    }
+    const ideas = await this.list();
+    const affected = ideas.filter((idea: Idea) => idea.tags.includes(current.name));
+    if (affected.length === 0) {
+      return;
+    }
+    await this.removeTags(affected.map((idea: Idea) => idea.id), [current.name]);
   }
 
   async assignFolder(ids: string[], folderId?: string): Promise<void> {

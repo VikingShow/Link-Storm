@@ -64,6 +64,10 @@ struct Index {
   @State private tagsCatalog: IdeaTag[] = [];
   @State private batchFolderId: string = '';
   @State private batchTagsInput: string = '';
+  @State private folderNameInput: string = '';
+  @State private editingFolderId: string = '';
+  @State private tagNameInput: string = '';
+  @State private editingTagId: string = '';
   @State private shareCaptureSummary: string = '';
   @State private audioRecorderState: string = 'idle';
   private handwritingCanvasId: string = 'handwriting-canvas';
@@ -616,21 +620,64 @@ struct Index {
               .fontSize(12)
               .fontColor('#667085')
             Blank()
-            Button('新建标签')
+            TextInput({ placeholder: '标签名称', text: this.tagNameInput })
+              .onChange((value: string) => this.tagNameInput = value)
+              .layoutWeight(1)
+            Button(this.editingTagId.length > 0 ? '保存标签' : '新建标签')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
-                await ideaRepository.createTag(`标签 ${this.tagsCatalog.length + 1}`);
+                await this.saveTagFromInput();
                 await this.reloadTags();
+                await this.reloadIdeas();
               })
           }
           Row({ space: 6 }) {
             ForEach(this.tagsCatalog, (tag: IdeaTag) => {
-              Button(tag.name)
-                .buttonStyle(ButtonStyleMode.NORMAL)
-                .backgroundColor(this.tagFilter === tag.name ? tag.color : '#FFFFFF')
-                .fontColor(this.tagFilter === tag.name ? '#FFFFFF' : '#697386')
-                .onClick(() => this.tagFilter = tag.name)
+              Row({ space: 4 }) {
+                Button(tag.name)
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .backgroundColor(this.tagFilter === tag.name ? tag.color : '#FFFFFF')
+                  .fontColor(this.tagFilter === tag.name ? '#FFFFFF' : '#697386')
+                  .onClick(() => this.tagFilter = tag.name)
+                Button('改')
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .onClick(() => {
+                    this.editingTagId = tag.id;
+                    this.tagNameInput = tag.name;
+                  })
+                Button('删')
+                  .buttonStyle(ButtonStyleMode.NORMAL)
+                  .fontColor('#B42318')
+                  .onClick(async () => {
+                    await ideaRepository.deleteTag(tag.id);
+                    if (this.tagFilter === tag.name) {
+                      this.tagFilter = '';
+                    }
+                    if (this.editingTagId === tag.id) {
+                      this.editingTagId = '';
+                      this.tagNameInput = '';
+                    }
+                    await this.reloadTags();
+                    await this.reloadIdeas();
+                  })
+              }
             }, (tag: IdeaTag) => tag.id)
+          }
+        }
+      } else {
+        Column({ space: 8 }) {
+          Text('标签库')
+            .fontSize(12)
+            .fontColor('#667085')
+          Row({ space: 8 }) {
+            TextInput({ placeholder: '标签名称', text: this.tagNameInput })
+              .onChange((value: string) => this.tagNameInput = value)
+            Button('新建标签')
+              .buttonStyle(ButtonStyleMode.NORMAL)
+              .onClick(async () => {
+                await this.saveTagFromInput();
+                await this.reloadTags();
+              })
           }
         }
       }
@@ -1094,6 +1141,36 @@ struct Index {
     return this.tagsCatalog.slice(0, 8).map((tag: IdeaTag) => tag.name);
   }
 
+  private async saveTagFromInput(): Promise<void> {
+    const name = this.tagNameInput.trim();
+    if (name.length === 0) {
+      this.exportStatus = '请输入标签名称';
+      return;
+    }
+    if (this.editingTagId.length > 0) {
+      await ideaRepository.updateTag(this.editingTagId, { name });
+      this.editingTagId = '';
+    } else {
+      await ideaRepository.createTag(name);
+    }
+    this.tagNameInput = '';
+  }
+
+  private async saveFolderFromInput(): Promise<void> {
+    const name = this.folderNameInput.trim();
+    if (name.length === 0) {
+      this.exportStatus = '请输入文件夹名称';
+      return;
+    }
+    if (this.editingFolderId.length > 0) {
+      await ideaRepository.updateFolder(this.editingFolderId, { name });
+      this.editingFolderId = '';
+    } else {
+      await ideaRepository.createFolder(name);
+    }
+    this.folderNameInput = '';
+  }
+
   @Builder
   private FolderManagerPanel() {
     Column({ space: 8 }) {
@@ -1102,10 +1179,13 @@ struct Index {
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
         Blank()
-        Button('新建文件夹')
+        TextInput({ placeholder: '文件夹名称', text: this.folderNameInput })
+          .onChange((value: string) => this.folderNameInput = value)
+          .layoutWeight(1)
+        Button(this.editingFolderId.length > 0 ? '保存文件夹' : '新建文件夹')
           .buttonStyle(ButtonStyleMode.NORMAL)
           .onClick(async () => {
-            await ideaRepository.createFolder(`文件夹 ${this.folders.length + 1}`);
+            await this.saveFolderFromInput();
             await this.reloadFolders();
           })
       }
@@ -1128,15 +1208,19 @@ struct Index {
               .onClick(() => this.folderId = folder.id)
             Button('改名')
               .buttonStyle(ButtonStyleMode.NORMAL)
-              .onClick(async () => {
-                await ideaRepository.updateFolder(folder.id, { name: `${folder.name}*` });
-                await this.reloadFolders();
+              .onClick(() => {
+                this.editingFolderId = folder.id;
+                this.folderNameInput = folder.name;
               })
             Button('删除')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .fontColor('#B42318')
               .onClick(async () => {
                 await ideaRepository.deleteFolder(folder.id);
+                if (this.editingFolderId === folder.id) {
+                  this.editingFolderId = '';
+                  this.folderNameInput = '';
+                }
                 if (this.folderFilter === folder.id) {
                   this.folderFilter = 'all';
                 }

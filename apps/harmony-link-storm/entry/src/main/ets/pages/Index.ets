@@ -107,6 +107,7 @@ struct Index {
   build() {
     Column({ space: 16 }) {
       this.Header()
+      this.SettingsPanel()
       Column({ space: 16 }) {
         if (this.layoutMode === 'compact') {
           Column({ space: 16 }) {
@@ -247,17 +248,7 @@ struct Index {
           .backgroundColor(this.floatingBallEnabled() ? '#136F63' : '#FFFFFF')
           .fontColor(this.floatingBallEnabled() ? '#FFFFFF' : '#697386')
           .onClick(async () => {
-            try {
-              if (floatingBallService.isEnabled()) {
-                await floatingBallService.disable();
-                this.floatingBallStatus = '悬浮球已关闭';
-              } else {
-                const bundleName = await floatingBallService.enable();
-                this.floatingBallStatus = `悬浮球已启用：${bundleName}`;
-              }
-            } catch (err) {
-              this.floatingBallStatus = `悬浮球不可用：${String(err)}`;
-            }
+            await this.toggleFloatingBallFromSettings();
           })
         Text(this.floatingBallStatus)
           .fontSize(12)
@@ -303,6 +294,63 @@ struct Index {
       }
     }
     .width('100%')
+  }
+
+  @Builder
+  private SettingsPanel() {
+    Column({ space: 8 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('设置与权限兜底')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+          Text('权限按需申请；不可用时优先使用分享、截图兜底和 ZIP 导出/导入。')
+            .fontSize(12)
+            .fontColor('#667085')
+        }
+        .alignItems(HorizontalAlign.Start)
+        Blank()
+        Button('重试麦克风')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            await this.retryMicrophonePermission();
+          })
+        Button(this.floatingBallEnabled() ? '关闭悬浮球' : '启用悬浮球')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            await this.toggleFloatingBallFromSettings();
+          })
+      }
+      Row({ space: 8 }) {
+        Text(`麦克风：${this.audioStatus}`)
+          .fontSize(12)
+          .fontColor('#667085')
+          .layoutWeight(1)
+        Text(`悬浮球：${this.floatingBallStatus}`)
+          .fontSize(12)
+          .fontColor('#667085')
+          .layoutWeight(1)
+      }
+      Row({ space: 8 }) {
+        Text('分享入口：系统分享文本、链接或图片到 Link Storm 后会生成本地想法。')
+          .fontSize(12)
+          .fontColor('#667085')
+          .layoutWeight(1)
+        Text('截图兜底：无法读取来源时，可用页面组件截图保存当前上下文。')
+          .fontSize(12)
+          .fontColor('#667085')
+          .layoutWeight(1)
+        Text('备份兜底：ZIP 备份包含元数据、AI 结果和附件，可跨设备手动迁移。')
+          .fontSize(12)
+          .fontColor('#667085')
+          .layoutWeight(1)
+      }
+    }
+    .padding(12)
+    .width('100%')
+    .backgroundColor('#FFFFFF')
+    .border({ width: 1, color: '#D8DDE6' })
+    .borderRadius(8)
   }
 
   @Builder
@@ -1023,6 +1071,27 @@ struct Index {
 
   private floatingBallEnabled(): boolean {
     return floatingBallService.isEnabled();
+  }
+
+  private async retryMicrophonePermission(): Promise<void> {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const permissionService = PermissionService.getInstance(context);
+    const granted = await permissionService.requestMicrophone();
+    this.audioStatus = granted ? '麦克风权限已就绪' : '未获得麦克风权限，可继续使用文档、手写、分享和截图兜底';
+  }
+
+  private async toggleFloatingBallFromSettings(): Promise<void> {
+    try {
+      if (floatingBallService.isEnabled()) {
+        await floatingBallService.disable();
+        this.floatingBallStatus = '悬浮球已关闭';
+      } else {
+        const bundleName = await floatingBallService.enable();
+        this.floatingBallStatus = `悬浮球已启用：${bundleName}`;
+      }
+    } catch (err) {
+      this.floatingBallStatus = `悬浮球不可用：${String(err)}；可使用分享入口、截图兜底和桌面应用入口`;
+    }
   }
 
   private async saveDraft(): Promise<void> {

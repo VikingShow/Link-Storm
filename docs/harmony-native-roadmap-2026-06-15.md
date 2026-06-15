@@ -62,6 +62,7 @@ Date: 2026-06-15
 - Conservative imports now preserve incoming same-ID conflicts as local conflict duplicates instead of dropping the imported version
 - Home cards and detail pages now let users mark records as local-only or synced after reviewing sync/import conflicts
 - Home filters now include local-only, pending-sync, synced, and conflict sync states with localized filter summaries
+- Home now includes a settings and permission fallback panel for microphone retry, floating-ball fallback, sharing, screenshot fallback, and ZIP backup migration
 
 ## Verified milestone
 
@@ -279,6 +280,10 @@ feat(harmony): manage idea sync status
 
 ```text
 feat(harmony): filter ideas by sync status
+```
+
+```text
+feat(harmony): add settings fallback panel
 ```
 
 Verification:

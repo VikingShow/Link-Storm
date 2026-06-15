@@ -481,9 +481,24 @@ struct Index {
       .border({ width: 1, color: '#D8DDE6' })
       .borderRadius(8)
     } else {
-      TextArea({ placeholder: '写下你的想法、清单、问题或行动计划', text: this.documentText })
-        .height(180)
-        .onChange((value: string) => this.documentText = value)
+      Column({ space: 8 }) {
+        TextArea({ placeholder: '写下你的想法、清单、问题或行动计划', text: this.documentText })
+          .height(180)
+          .onChange((value: string) => {
+            this.documentText = value;
+            void this.persistCaptureDraft();
+          })
+        Row() {
+          Text(this.documentStatsText())
+            .fontSize(12)
+            .fontColor('#667085')
+          Blank()
+          Text('自动保存草稿')
+            .fontSize(12)
+            .fontColor('#136F63')
+        }
+        .width('100%')
+      }
     }
   }
 
@@ -1247,6 +1262,15 @@ struct Index {
       parts.push(`状态 ${this.statusFilter}`);
     }
     return parts.length > 0 ? `当前筛选：${parts.join('，')}` : '当前显示全部记录。';
+  }
+
+  private documentStatsText(): string {
+    const text = this.documentText;
+    const trimmed = text.trim();
+    const characters = text.length;
+    const words = trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter((word: string) => word.length > 0).length;
+    const lines = text.length === 0 ? 0 : text.split('\n').length;
+    return `字数 ${characters}，词数 ${words}，行数 ${lines}`;
   }
 
   private clearHandwriting(preservePreview: boolean = false): void {

@@ -41,12 +41,17 @@ export class IdeaRepository {
 
   async init(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
-    this.store = await relationalStore.getRdbStore(context, {
-      name: STORE_NAME,
-      securityLevel: relationalStore.SecurityLevel.S1,
-      encrypt: false,
-      customDir: 'link-storm'
-    });
+    try {
+      this.store = await relationalStore.getRdbStore(context, {
+        name: STORE_NAME,
+        securityLevel: relationalStore.SecurityLevel.S1,
+        encrypt: false,
+        customDir: 'link-storm'
+      });
+    } catch (err) {
+      this.store = undefined;
+      throw new Error(`初始化本地数据库失败：${String(err)}`);
+    }
     await this.ensureSchema();
   }
 

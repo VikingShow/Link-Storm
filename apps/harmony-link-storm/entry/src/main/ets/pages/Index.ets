@@ -77,7 +77,12 @@ struct Index {
 
   async aboutToAppear(): Promise<void> {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    await ideaRepository.init(context);
+    try {
+      await ideaRepository.init(context);
+    } catch (err) {
+      this.exportStatus = `本地数据库初始化失败：${String(err)}`;
+      return;
+    }
     audioRecordService.setContext(context);
     await this.restoreCaptureDraft();
     await this.reloadIdeas();

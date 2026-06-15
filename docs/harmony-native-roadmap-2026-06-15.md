@@ -31,6 +31,7 @@ Date: 2026-06-15
 - Repository list and detail reads now use localized guarded RDB queries
 - Repository idea, tag, and folder writes now use localized guarded RDB helpers
 - Capture draft RDB save and load paths now use localized guarded repository helpers
+- Repository initialization failures now surface as localized startup status feedback
 
 ## Verified milestone
 
@@ -124,6 +125,10 @@ feat(harmony): guard repository write helpers
 
 ```text
 feat(harmony): guard capture draft rdb access
+```
+
+```text
+feat(harmony): report repository init failures
 ```
 
 Verification:

@@ -61,6 +61,7 @@ Date: 2026-06-15
 - Conservative imports now mark skipped same-ID records as sync conflicts and show sync status on home cards and detail pages
 - Conservative imports now preserve incoming same-ID conflicts as local conflict duplicates instead of dropping the imported version
 - Home cards and detail pages now let users mark records as local-only or synced after reviewing sync/import conflicts
+- Home filters now include local-only, pending-sync, synced, and conflict sync states with localized filter summaries
 
 ## Verified milestone
 
@@ -274,6 +275,10 @@ feat(harmony): keep import conflict duplicates
 
 ```text
 feat(harmony): manage idea sync status
+```
+
+```text
+feat(harmony): filter ideas by sync status
 ```
 
 Verification:

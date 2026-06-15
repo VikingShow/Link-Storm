@@ -641,6 +641,10 @@ struct Index {
         this.StatusButton('favorite', '收藏')
         this.StatusButton('archived', '归档')
         this.StatusButton('active', '未归档')
+        this.StatusButton('sync:local_only', '仅本机')
+        this.StatusButton('sync:pending_sync', '待同步')
+        this.StatusButton('sync:synced', '已同步')
+        this.StatusButton('sync:conflict', '冲突')
       }
 
       if (this.folders.length > 0) {
@@ -1220,7 +1224,8 @@ struct Index {
       const statusOk = this.statusFilter === 'all'
         || (this.statusFilter === 'favorite' && idea.isFavorite)
         || (this.statusFilter === 'archived' && idea.isArchived)
-        || (this.statusFilter === 'active' && !idea.isArchived);
+        || (this.statusFilter === 'active' && !idea.isArchived)
+        || this.syncStatusMatchesFilter(idea.syncStatus);
       const text = [
         idea.title,
         idea.plainText,
@@ -1295,6 +1300,13 @@ struct Index {
       return '导入冲突';
     }
     return '仅本机';
+  }
+
+  private syncStatusMatchesFilter(syncStatus: string): boolean {
+    if (!this.statusFilter.startsWith('sync:')) {
+      return false;
+    }
+    return syncStatus === this.statusFilter.substring(5);
   }
 
   private async updateIdeaSyncStatus(id: string, syncStatus: string): Promise<void> {
@@ -1728,9 +1740,25 @@ struct Index {
       parts.push(`文件夹 ${this.folderFilter}`);
     }
     if (this.statusFilter !== 'all') {
-      parts.push(`状态 ${this.statusFilter}`);
+      parts.push(`状态 ${this.statusFilterLabel(this.statusFilter)}`);
     }
     return parts.length > 0 ? `当前筛选：${parts.join('，')}` : '当前显示全部记录。';
+  }
+
+  private statusFilterLabel(statusFilter: string): string {
+    if (statusFilter === 'favorite') {
+      return '收藏';
+    }
+    if (statusFilter === 'archived') {
+      return '归档';
+    }
+    if (statusFilter === 'active') {
+      return '未归档';
+    }
+    if (statusFilter.startsWith('sync:')) {
+      return this.syncStatusLabel(statusFilter.substring(5));
+    }
+    return statusFilter;
   }
 
   private documentStatsText(): string {

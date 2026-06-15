@@ -177,30 +177,7 @@ struct Detail {
           Text('文件夹')
           .fontSize(12)
           .fontColor('#667085')
-        if (this.folders.length > 0) {
-          Row({ space: 8 }) {
-            ForEach(this.folders, (folder: IdeaFolder) => {
-              Button(folder.name)
-                .buttonStyle(ButtonStyleMode.NORMAL)
-                .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
-                .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
-                .onClick(() => this.folderId = folder.id)
-            }, (folder: IdeaFolder) => folder.id)
-          }
-          Button('刷新文件夹')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .onClick(async () => {
-              await this.refreshFolders();
-            })
-        } else {
-          TextInput({ text: this.folderId, placeholder: '文件夹 ID' })
-            .onChange((value: string) => this.folderId = value)
-          Button('刷新文件夹')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .onClick(async () => {
-              await this.refreshFolders();
-            })
-        }
+        this.DetailFolderPicker()
         TextArea({ text: this.plainText, placeholder: '正文' })
           .height(160)
           .onChange((value: string) => this.plainText = value)
@@ -379,6 +356,33 @@ struct Detail {
       current.add(tag);
     }
     this.tags = Array.from(current.values()).join(', ');
+  }
+
+  @Builder
+  private DetailFolderPicker() {
+    Column({ space: 8 }) {
+      Row({ space: 8 }) {
+        Button('无文件夹')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.folderId.length === 0 ? '#E0F2EE' : '#FFFFFF')
+          .fontColor(this.folderId.length === 0 ? '#0B4F47' : '#697386')
+          .onClick(() => this.folderId = '')
+        ForEach(this.folders, (folder: IdeaFolder) => {
+          Button(folder.name)
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
+            .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
+            .onClick(() => this.folderId = folder.id)
+        }, (folder: IdeaFolder) => folder.id)
+      }
+      Button('刷新文件夹')
+        .buttonStyle(ButtonStyleMode.NORMAL)
+        .onClick(async () => {
+          await this.refreshFolders();
+        })
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder

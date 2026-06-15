@@ -321,20 +321,7 @@ struct Index {
           void this.persistCaptureDraft();
         })
 
-      Row({ space: 10 }) {
-        TextInput({ placeholder: '文件夹 ID', text: this.folderId })
-          .onChange((value: string) => {
-            this.folderId = value;
-            void this.persistCaptureDraft();
-          })
-          .layoutWeight(1)
-        Button('清空文件夹')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(() => {
-            this.folderId = '';
-            void this.persistCaptureDraft();
-          })
-      }
+      this.CaptureFolderPicker()
 
       Row({ space: 10 }) {
         TextInput({ placeholder: '来源标题', text: this.sourceTitle })
@@ -539,6 +526,37 @@ struct Index {
         .width('100%')
       }
     }
+  }
+
+  @Builder
+  private CaptureFolderPicker() {
+    Column({ space: 8 }) {
+      Text('文件夹')
+        .fontSize(12)
+        .fontColor('#667085')
+      Row({ space: 8 }) {
+        Button('无文件夹')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(this.folderId.length === 0 ? '#E0F2EE' : '#FFFFFF')
+          .fontColor(this.folderId.length === 0 ? '#0B4F47' : '#697386')
+          .onClick(() => {
+            this.folderId = '';
+            void this.persistCaptureDraft();
+          })
+        ForEach(this.folders, (folder: IdeaFolder) => {
+          Button(folder.name)
+            .buttonStyle(ButtonStyleMode.NORMAL)
+            .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
+            .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
+            .onClick(() => {
+              this.folderId = folder.id;
+              void this.persistCaptureDraft();
+            })
+        }, (folder: IdeaFolder) => folder.id)
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder

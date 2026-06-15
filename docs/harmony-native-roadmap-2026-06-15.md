@@ -46,6 +46,7 @@ Date: 2026-06-15
 - ZIP backup export/import temp directories now clean up recursively after compression or extraction
 - ZIP backup import now validates backup idea data before restoring attachments and merging
 - ZIP backup export now uses a single idea snapshot for manifest data and attachment collection
+- Capture and detail editing now use named folder pickers with an explicit no-folder option
 
 ## Verified milestone
 
@@ -199,6 +200,10 @@ feat(harmony): validate backup idea payloads
 
 ```text
 feat(harmony): snapshot backup ideas once
+```
+
+```text
+feat(harmony): pick named folders in editors
 ```
 
 Verification:

@@ -39,6 +39,7 @@ Date: 2026-06-15
 - Selected or filtered ideas can now be shared/exported as plain text or Markdown through the native share sheet
 - Selected or filtered ideas can now be saved as TXT or Markdown files through the native document picker
 - Folder and tag management now supports named create/rename flows, and deleting a tag removes it from existing ideas
+- Renaming a tag now synchronizes the tag name across existing ideas without creating duplicates
 
 ## Verified milestone
 
@@ -164,6 +165,10 @@ feat(harmony): export ideas as text files
 
 ```text
 feat(harmony): manage named folders and tags
+```
+
+```text
+feat(harmony): sync renamed idea tags
 ```
 
 Verification:

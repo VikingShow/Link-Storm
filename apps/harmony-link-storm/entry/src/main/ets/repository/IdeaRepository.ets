@@ -101,14 +101,18 @@ export class IdeaRepository {
     if (!current) {
       return;
     }
+    const nextName = patch.name ?? current.name;
     const next: IdeaTag = {
       id: current.id,
-      name: patch.name ?? current.name,
+      name: nextName,
       color: patch.color ?? current.color,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };
     await this.updateRowsGuarded(this.tagToBucket(next), this.predicatesFor(TAGS_TABLE, id), '更新标签失败');
+    if (current.name !== nextName) {
+      await this.renameTagInIdeas(current.name, nextName);
+    }
   }
 
   async deleteTag(id: string): Promise<void> {
@@ -223,6 +227,43 @@ export class IdeaRepository {
         updatedAt: now
       };
       await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, id), '移除想法标签失败');
+    }
+  }
+
+  private async renameTagInIdeas(oldName: string, newName: string): Promise<void> {
+    const normalizedOld = oldName.trim();
+    const normalizedNew = newName.trim();
+    if (normalizedOld.length === 0 || normalizedNew.length === 0 || normalizedOld === normalizedNew) {
+      return;
+    }
+    const ideas = await this.list();
+    const now = new Date().toISOString();
+    for (const idea of ideas.filter((item: Idea) => item.tags.includes(normalizedOld))) {
+      const nextTags: string[] = [];
+      for (const tag of idea.tags) {
+        const nextTag = tag === normalizedOld ? normalizedNew : tag;
+        if (!nextTags.includes(nextTag)) {
+          nextTags.push(nextTag);
+        }
+      }
+      const next: Idea = {
+        id: idea.id,
+        title: idea.title,
+        type: idea.type,
+        plainText: idea.plainText,
+        note: idea.note,
+        tags: nextTags,
+        folderId: idea.folderId,
+        context: idea.context,
+        asset: idea.asset,
+        isFavorite: idea.isFavorite,
+        isArchived: idea.isArchived,
+        syncStatus: idea.syncStatus,
+        aiStatus: idea.aiStatus,
+        createdAt: idea.createdAt,
+        updatedAt: now
+      };
+      await this.updateRowsGuarded(this.ideaToBucket(next), this.predicatesFor(IDEAS_TABLE, idea.id), '同步想法标签失败');
     }
   }
 

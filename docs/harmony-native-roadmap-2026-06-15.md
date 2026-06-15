@@ -25,6 +25,7 @@ Date: 2026-06-15
 - Home-page audio and handwriting status text now reflects the implemented native capture flow
 - Audio recording, playback, and floating-ball service errors now surface localized Chinese messages
 - Screenshot fallback and handwriting preview saves now guard cleanup failures
+- Audio playback start and file-handle cleanup now have explicit error guards
 
 ## Verified milestone
 
@@ -94,6 +95,10 @@ fix(harmony): localize native service errors
 
 ```text
 feat(harmony): guard capture preview cleanup
+```
+
+```text
+feat(harmony): guard audio playback start
 ```
 
 Verification:

@@ -136,7 +136,12 @@ export class AudioPlaybackService {
       rendererFlags: 0
     };
     await this.invokeWithCallback((done) => this.player?.prepare(done));
-    await this.player.play();
+    try {
+      await this.player.play();
+    } catch (err) {
+      this.lastError = `启动音频播放失败：${String(err)}`;
+      throw new Error(this.lastError);
+    }
   }
 
   private resolvePath(path: string): string {
@@ -163,6 +168,8 @@ export class AudioPlaybackService {
     }
     try {
       fileIo.closeSync(this.fileHandle);
+    } catch {
+      // Ignore file-handle cleanup failures after player release.
     } finally {
       this.fileHandle = undefined;
     }

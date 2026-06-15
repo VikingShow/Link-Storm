@@ -49,6 +49,7 @@ Date: 2026-06-15
 - Capture and detail editing now use named folder pickers with an explicit no-folder option
 - AI organization results now have a native RDB table, import/export support, and editable detail-page placeholders that do not overwrite original ideas
 - Detail page now exports the current attachment, handwriting preview PNG, and handwriting strokes JSON through the native document picker
+- JSON and ZIP imports now replace ideas, folders, tags, and AI outputs inside one RDB transaction, with failed ZIP imports cleaning newly copied managed attachments
 
 ## Verified milestone
 
@@ -214,6 +215,10 @@ feat(harmony): persist editable ai outputs
 
 ```text
 feat(harmony): export detail attachments
+```
+
+```text
+feat(harmony): transaction-safe import payloads
 ```
 
 Verification:

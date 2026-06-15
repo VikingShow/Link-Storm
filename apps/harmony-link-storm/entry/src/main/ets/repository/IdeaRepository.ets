@@ -29,6 +29,15 @@ interface MergeResult {
   items: Idea[];
 }
 
+interface ImportApplyPlan {
+  result: ImportResult;
+  previousIdeas: Idea[];
+  ideas: Idea[];
+  folders?: IdeaFolder[];
+  tags?: IdeaTag[];
+  aiOutputs?: IdeaAiOutput[];
+}
+
 interface CaptureDraftRecord {
   id: string;
   payload: string;
@@ -602,20 +611,11 @@ export class IdeaRepository {
       if (!Array.isArray(parsed.ideas)) {
         throw new Error('备份想法数据不正确');
       }
+      const importedAttachmentPaths: string[] = [];
       const attachmentsDir = this.prepareImportAttachmentsDir();
-      const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir);
+      const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir, importedAttachmentPaths);
       const importedIdeas = this.attachImportedAssets(parsed.ideas, attachmentMap);
-      const merged = await this.importPayloadIdeas(importedIdeas, strategy);
-      if (Array.isArray(parsed.folders)) {
-        await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders, strategy));
-      }
-      if (Array.isArray(parsed.tags)) {
-        await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags, strategy));
-      }
-      if (Array.isArray(parsed.aiOutputs)) {
-        await this.replaceAiOutputs(this.mergeAiOutputs(await this.listAllAiOutputs(), parsed.aiOutputs, strategy));
-      }
-      return merged;
+      return await this.importPayload(importedIdeas, parsed.folders, parsed.tags, parsed.aiOutputs, strategy, importedAttachmentPaths);
     } finally {
       this.cleanupBackupTemp(tempRoot);
     }
@@ -634,17 +634,13 @@ export class IdeaRepository {
     if (!Array.isArray(parsed.ideas)) {
       throw new Error('想法数据不正确');
     }
-    const merged = await this.importPayloadIdeas(parsed.ideas as Idea[], strategy);
-    if (Array.isArray(parsed.folders)) {
-      await this.replaceFolders(this.mergeFolders(await this.listFolders(), parsed.folders as IdeaFolder[], strategy));
-    }
-    if (Array.isArray(parsed.tags)) {
-      await this.replaceTags(this.mergeTags(await this.listTags(), parsed.tags as IdeaTag[], strategy));
-    }
-    if (Array.isArray(parsed.aiOutputs)) {
-      await this.replaceAiOutputs(this.mergeAiOutputs(await this.listAllAiOutputs(), parsed.aiOutputs as IdeaAiOutput[], strategy));
-    }
-    return merged;
+    return await this.importPayload(
+      parsed.ideas as Idea[],
+      parsed.folders as IdeaFolder[] | undefined,
+      parsed.tags as IdeaTag[] | undefined,
+      parsed.aiOutputs as IdeaAiOutput[] | undefined,
+      strategy
+    );
   }
 
   async pickAttachmentPath(): Promise<string | undefined> {
@@ -774,16 +770,78 @@ export class IdeaRepository {
     )`, '初始化捕捉草稿表失败');
   }
 
-  private async importPayloadIdeas(incoming: Idea[], strategy: ImportConflictStrategy): Promise<ImportResult> {
-    const existing = await this.list();
-    const merged = this.mergeIdeas(existing, incoming, strategy);
-    await this.replaceIdeas(merged.items);
-    return {
-      inserted: merged.inserted,
-      updated: merged.updated,
-      skipped: merged.skipped,
-      conflicts: merged.conflicts
+  private async importPayload(
+    incomingIdeas: Idea[],
+    incomingFolders: IdeaFolder[] | undefined,
+    incomingTags: IdeaTag[] | undefined,
+    incomingAiOutputs: IdeaAiOutput[] | undefined,
+    strategy: ImportConflictStrategy,
+    importedAttachmentPaths: string[] = []
+  ): Promise<ImportResult> {
+    try {
+      const plan = await this.createImportApplyPlan(incomingIdeas, incomingFolders, incomingTags, incomingAiOutputs, strategy);
+      await this.applyImportPlan(plan);
+      const keepPaths = this.collectManagedAssetPaths(plan.ideas);
+      this.cleanupReplacedManagedAssets(plan.previousIdeas, keepPaths);
+      this.cleanupUnusedImportedAttachmentPaths(importedAttachmentPaths, keepPaths);
+      return plan.result;
+    } catch (err) {
+      this.cleanupImportedAttachmentPaths(importedAttachmentPaths);
+      throw this.asError(err);
+    }
+  }
+
+  private async createImportApplyPlan(
+    incomingIdeas: Idea[],
+    incomingFolders: IdeaFolder[] | undefined,
+    incomingTags: IdeaTag[] | undefined,
+    incomingAiOutputs: IdeaAiOutput[] | undefined,
+    strategy: ImportConflictStrategy
+  ): Promise<ImportApplyPlan> {
+    const previousIdeas = await this.list();
+    const mergedIdeas = this.mergeIdeas(previousIdeas, incomingIdeas, strategy);
+    const plan: ImportApplyPlan = {
+      result: {
+        inserted: mergedIdeas.inserted,
+        updated: mergedIdeas.updated,
+        skipped: mergedIdeas.skipped,
+        conflicts: mergedIdeas.conflicts
+      },
+      previousIdeas,
+      ideas: mergedIdeas.items
     };
+    if (Array.isArray(incomingFolders)) {
+      plan.folders = this.mergeFolders(await this.listFolders(), incomingFolders, strategy);
+    }
+    if (Array.isArray(incomingTags)) {
+      plan.tags = this.mergeTags(await this.listTags(), incomingTags, strategy);
+    }
+    if (Array.isArray(incomingAiOutputs)) {
+      plan.aiOutputs = this.mergeAiOutputs(await this.listAllAiOutputs(), incomingAiOutputs, strategy);
+    }
+    return plan;
+  }
+
+  private async applyImportPlan(plan: ImportApplyPlan): Promise<void> {
+    await this.runInTransaction(async () => {
+      await this.replaceIdeaRowsOnly(plan.ideas);
+      if (plan.folders) {
+        await this.replaceFolders(plan.folders);
+      }
+      if (plan.tags) {
+        await this.replaceTags(plan.tags);
+      }
+      if (plan.aiOutputs) {
+        await this.replaceAiOutputs(plan.aiOutputs);
+      }
+    });
+  }
+
+  private async replaceIdeaRowsOnly(items: Idea[]): Promise<void> {
+    await this.deleteTableRowsGuarded(IDEAS_TABLE, '清空想法表失败');
+    for (const item of items) {
+      await this.insertRowGuarded(IDEAS_TABLE, this.ideaToBucket(item), '写入想法数据失败');
+    }
   }
 
   private async replaceIdeas(items: Idea[]): Promise<void> {
@@ -826,7 +884,7 @@ export class IdeaRepository {
     return attachmentsDir;
   }
 
-  private extractBackupAttachments(attachments: IdeaBackupAttachment[] | undefined, extractDir: string, attachmentsDir: string): Map<string, string> {
+  private extractBackupAttachments(attachments: IdeaBackupAttachment[] | undefined, extractDir: string, attachmentsDir: string, importedPaths: string[] = []): Map<string, string> {
     const map = new Map<string, string>();
     if (!Array.isArray(attachments)) {
       return map;
@@ -842,6 +900,7 @@ export class IdeaRepository {
       try {
         fileIo.copyFileSync(sourcePath, targetPath);
         map.set(`${attachment.ideaId}:${role}`, targetPath);
+        importedPaths.push(targetPath);
       } catch {
         // Skip attachments that cannot be restored from the backup archive.
       }
@@ -1104,6 +1163,27 @@ export class IdeaRepository {
     }
   }
 
+  private cleanupReplacedManagedAssets(ideas: Idea[], keepPaths: string[]): void {
+    for (const idea of ideas) {
+      this.cleanupManagedIdeaAssetFiles(idea.asset, keepPaths);
+    }
+  }
+
+  private cleanupImportedAttachmentPaths(paths: string[]): void {
+    for (const path of paths) {
+      this.cleanupManagedPath(path);
+    }
+  }
+
+  private cleanupUnusedImportedAttachmentPaths(paths: string[], keepPaths: string[]): void {
+    const keepSet = new Set(keepPaths.filter((path: string) => path.length > 0));
+    for (const path of paths) {
+      if (!keepSet.has(path)) {
+        this.cleanupManagedPath(path);
+      }
+    }
+  }
+
   private collectManagedAssetPaths(ideas: Idea[]): string[] {
     const paths: string[] = [];
     for (const idea of ideas) {
@@ -1354,6 +1434,34 @@ export class IdeaRepository {
     } catch (err) {
       throw new Error(`${message}：${String(err)}`);
     }
+  }
+
+  private async runInTransaction(work: () => Promise<void>): Promise<void> {
+    const store = this.ensureStore();
+    let shouldRollback = false;
+    try {
+      store.beginTransaction();
+      shouldRollback = true;
+      await work();
+      store.commit();
+      shouldRollback = false;
+    } catch (err) {
+      if (shouldRollback) {
+        try {
+          store.rollBack();
+        } catch {
+          // Keep the original import failure as the surfaced error.
+        }
+      }
+      throw this.asError(err);
+    }
+  }
+
+  private asError(err: Object): Error {
+    if (err instanceof Error) {
+      return err;
+    }
+    return new Error(String(err));
   }
 
   private ensureStore(): RdbStore {

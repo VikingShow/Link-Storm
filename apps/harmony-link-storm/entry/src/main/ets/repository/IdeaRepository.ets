@@ -410,7 +410,9 @@ export class IdeaRepository {
   }
 
   async delete(id: string): Promise<void> {
+    const current = await this.getById(id);
     await this.deleteRowsGuarded(this.predicatesFor(IDEAS_TABLE, id), '删除想法失败');
+    this.cleanupManagedIdeaAssetFiles(current?.asset);
   }
 
   async getById(id: string): Promise<Idea | undefined> {

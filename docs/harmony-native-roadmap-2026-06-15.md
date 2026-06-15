@@ -40,6 +40,7 @@ Date: 2026-06-15
 - Selected or filtered ideas can now be saved as TXT or Markdown files through the native document picker
 - Folder and tag management now supports named create/rename flows, and deleting a tag removes it from existing ideas
 - Renaming a tag now synchronizes the tag name across existing ideas without creating duplicates
+- Deleting an idea now removes managed local attachment and preview files
 
 ## Verified milestone
 
@@ -169,6 +170,10 @@ feat(harmony): manage named folders and tags
 
 ```text
 feat(harmony): sync renamed idea tags
+```
+
+```text
+feat(harmony): cleanup deleted idea attachments
 ```
 
 Verification:

@@ -43,6 +43,10 @@ struct Detail {
     await this.reload();
   }
 
+  aboutToDisappear(): void {
+    void audioPlaybackService.release();
+  }
+
   build() {
     Column({ space: 16 }) {
       Row() {
@@ -129,38 +133,25 @@ struct Detail {
         }
         if (this.isPlayableAudio()) {
           Row({ space: 8 }) {
-            Button('鎾斁')
+            Button('播放')
               .buttonStyle(ButtonStyleMode.NORMAL)
               .onClick(async () => {
-                try {
-                  await audioPlaybackService.play(this.assetLocalUri);
-                  this.playbackState = audioPlaybackService.getState();
-                } catch (err) {
-                  this.status = `鎾斁澶辫触锛?{String(err)}`;
-                }
+                await this.playAudioAsset();
               })
-            Button('鏆傚仠')
+            Button('暂停')
               .buttonStyle(ButtonStyleMode.NORMAL)
+              .enabled(this.playbackState === 'playing')
               .onClick(async () => {
-                try {
-                  await audioPlaybackService.pause();
-                  this.playbackState = audioPlaybackService.getState();
-                } catch (err) {
-                  this.status = `鏆傚仠澶辫触锛?{String(err)}`;
-                }
+                await this.pauseAudioAsset();
               })
-            Button('鍋滄')
+            Button('停止')
               .buttonStyle(ButtonStyleMode.NORMAL)
+              .enabled(this.playbackState !== 'idle')
               .onClick(async () => {
-                try {
-                  await audioPlaybackService.stop();
-                  this.playbackState = audioPlaybackService.getState();
-                } catch (err) {
-                  this.status = `鍋滄澶辫触锛?{String(err)}`;
-                }
+                await this.stopAudioAsset();
               })
           }
-          Text(`鎾斁鐘舵€侊細${this.playbackState}`)
+          Text(`播放状态：${this.playbackState}`)
             .fontColor('#667085')
             .fontSize(12)
         }
@@ -320,6 +311,49 @@ struct Detail {
     if (previewPath.length > 0) {
       await this.openAttachment(previewPath);
     }
+  }
+
+  private async playAudioAsset(): Promise<void> {
+    try {
+      await audioPlaybackService.play(this.assetLocalUri);
+      this.syncPlaybackState();
+      this.status = '音频播放中';
+    } catch (err) {
+      this.syncPlaybackState();
+      this.status = this.formatPlaybackError('播放失败', err);
+    }
+  }
+
+  private async pauseAudioAsset(): Promise<void> {
+    try {
+      await audioPlaybackService.pause();
+      this.syncPlaybackState();
+      this.status = '音频已暂停';
+    } catch (err) {
+      this.syncPlaybackState();
+      this.status = this.formatPlaybackError('暂停失败', err);
+    }
+  }
+
+  private async stopAudioAsset(): Promise<void> {
+    try {
+      await audioPlaybackService.stop();
+      this.syncPlaybackState();
+      this.status = '音频已停止';
+    } catch (err) {
+      this.syncPlaybackState();
+      this.status = this.formatPlaybackError('停止失败', err);
+    }
+  }
+
+  private syncPlaybackState(): void {
+    this.playbackState = audioPlaybackService.getState();
+  }
+
+  private formatPlaybackError(prefix: string, err: Object): string {
+    const serviceError = audioPlaybackService.getLastError();
+    const detail = serviceError.length > 0 ? serviceError : String(err);
+    return `${prefix}: ${detail}`;
   }
 
   private parseTags(): string[] {

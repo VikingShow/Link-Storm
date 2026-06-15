@@ -14,6 +14,7 @@ Date: 2026-06-15
 - ZIP backup import now restores managed attachments and handwriting preview files
 - Floating ball service now keeps state consistent and records graceful fallback errors
 - Audio capture now exposes start, pause, resume, finish, and cancel controls with state recovery
+- Audio playback now releases resources on failures and exposes detail-page playback feedback
 
 ## Verified milestone
 
@@ -41,6 +42,10 @@ feat(harmony): harden floating ball fallback state
 feat(harmony): harden audio capture state flow
 ```
 
+```text
+feat(harmony): harden audio playback lifecycle
+```
+
 Verification:
 
 ```text
@@ -55,8 +60,8 @@ BUILD SUCCESSFUL
 
 ## Next milestones
 
-1. Harden audio playback lifecycle and detail-page playback error feedback
-2. Revisit AVRecorder file-handle exception warnings and permission handling on device
+1. Revisit AVRecorder file-handle exception warnings and permission handling on device
+2. Reduce RDB and file API exception warnings where handling can be made explicit
 3. Continue splitting remaining draft/file helpers from the main RDB path
 4. Add signing/profile notes for repeatable local HAP generation
 5. Revisit remaining SDK compatibility warnings after feature parity improves

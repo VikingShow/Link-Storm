@@ -10,6 +10,7 @@ export class AudioPlaybackService {
   private player: media.AVPlayer | undefined;
   private currentPath: string = '';
   private fileHandle: fileIo.File | undefined;
+  private lastError: string = '';
 
   static getInstance(context?: common.UIAbilityContext): AudioPlaybackService {
     if (!AudioPlaybackService.instance) {
@@ -27,46 +28,71 @@ export class AudioPlaybackService {
 
   async play(path: string): Promise<void> {
     const resolved = this.resolvePath(path);
-    if (!fileIo.accessSync(resolved)) {
-      throw new Error(`Audio file not found: ${resolved}`);
+    if (!this.audioFileExists(resolved)) {
+      this.lastError = `Audio file not found: ${resolved}`;
+      throw new Error(this.lastError);
     }
-    if (this.currentPath !== resolved) {
-      await this.release();
-      this.player = await media.createAVPlayer();
-      this.installListeners();
-      this.fileHandle = fileIo.openSync(resolved, fileIo.OpenMode.READ_ONLY);
-      this.player.url = `fd://${this.fileHandle.fd}`;
-      this.currentPath = resolved;
-      await this.preparePlayer();
-      return;
+    try {
+      if (this.currentPath !== resolved) {
+        await this.release();
+        this.player = await media.createAVPlayer();
+        this.installListeners();
+        this.fileHandle = fileIo.openSync(resolved, fileIo.OpenMode.READ_ONLY);
+        this.player.url = `fd://${this.fileHandle.fd}`;
+        this.currentPath = resolved;
+        await this.preparePlayer();
+        this.lastError = '';
+        return;
+      }
+      if (this.player?.state === 'prepared' || this.player?.state === 'paused' || this.player?.state === 'completed') {
+        await this.player.play();
+        this.lastError = '';
+        return;
+      }
+      if (this.player?.state === 'idle') {
+        this.closeFileHandle();
+        this.fileHandle = fileIo.openSync(resolved, fileIo.OpenMode.READ_ONLY);
+        this.player.url = `fd://${this.fileHandle.fd}`;
+        await this.preparePlayer();
+        this.lastError = '';
+        return;
+      }
+      await this.player?.play();
+      this.lastError = '';
+    } catch (err) {
+      await this.releaseQuietly();
+      this.lastError = `Failed to play audio: ${String(err)}`;
+      throw new Error(this.lastError);
     }
-    if (this.player?.state === 'prepared' || this.player?.state === 'paused' || this.player?.state === 'completed') {
-      await this.player.play();
-      return;
-    }
-    if (this.player?.state === 'idle') {
-      this.fileHandle = fileIo.openSync(resolved, fileIo.OpenMode.READ_ONLY);
-      this.player.url = `fd://${this.fileHandle.fd}`;
-      await this.preparePlayer();
-      return;
-    }
-    await this.player?.play();
   }
 
   async pause(): Promise<void> {
     if (!this.player) {
       return;
     }
-    await this.invokeWithCallback((done) => this.player?.pause(done));
+    try {
+      await this.invokeWithCallback((done) => this.player?.pause(done));
+      this.lastError = '';
+    } catch (err) {
+      this.lastError = `Failed to pause audio playback: ${String(err)}`;
+      throw new Error(this.lastError);
+    }
   }
 
   async stop(): Promise<void> {
     if (!this.player) {
       return;
     }
-    await this.invokeWithCallback((done) => this.player?.stop(done));
-    await this.invokeWithCallback((done) => this.player?.reset(done));
-    await this.release();
+    try {
+      await this.invokeWithCallback((done) => this.player?.stop(done));
+      await this.invokeWithCallback((done) => this.player?.reset(done));
+      await this.release();
+      this.lastError = '';
+    } catch (err) {
+      await this.releaseQuietly();
+      this.lastError = `Failed to stop audio playback: ${String(err)}`;
+      throw new Error(this.lastError);
+    }
   }
 
   async release(): Promise<void> {
@@ -85,11 +111,17 @@ export class AudioPlaybackService {
     return this.player?.state ?? 'idle';
   }
 
+  getLastError(): string {
+    return this.lastError;
+  }
+
   private installListeners(): void {
     if (!this.player) {
       return;
     }
     this.player.on('error', () => {
+      this.lastError = 'Audio player reported a playback error';
+      this.closeFileHandle();
       this.currentPath = '';
     });
   }
@@ -113,6 +145,17 @@ export class AudioPlaybackService {
     return path;
   }
 
+  private audioFileExists(path: string): boolean {
+    if (!path) {
+      return false;
+    }
+    try {
+      return fileIo.accessSync(path);
+    } catch {
+      return false;
+    }
+  }
+
   private closeFileHandle(): void {
     if (!this.fileHandle) {
       return;
@@ -121,6 +164,16 @@ export class AudioPlaybackService {
       fileIo.closeSync(this.fileHandle);
     } finally {
       this.fileHandle = undefined;
+    }
+  }
+
+  private async releaseQuietly(): Promise<void> {
+    try {
+      await this.release();
+    } catch {
+      this.player = undefined;
+      this.closeFileHandle();
+      this.currentPath = '';
     }
   }
 

@@ -122,11 +122,18 @@ export interface IdeaBackupPayload {
   schema: string;
   version: number;
   exportedAt: string;
+  sourceDevice?: IdeaBackupSourceDevice;
   ideas: Idea[];
   folders: IdeaFolder[];
   tags: IdeaTag[];
   aiOutputs?: IdeaAiOutput[];
   attachments: IdeaBackupAttachment[];
+}
+
+export interface IdeaBackupSourceDevice {
+  name: string;
+  type: string;
+  os: string;
 }
 
 export interface IdeaBackupAttachment {
@@ -135,6 +142,16 @@ export interface IdeaBackupAttachment {
   role?: string;
   sourcePath: string;
   relativePath: string;
+}
+
+export interface IdeaBackupPreview {
+  exportedAt: string;
+  sourceDevice: string;
+  ideaCount: number;
+  folderCount: number;
+  tagCount: number;
+  aiOutputCount: number;
+  attachmentCount: number;
 }
 
 export interface ImportResult {

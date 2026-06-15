@@ -4,7 +4,7 @@ import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import { systemShare } from '@kit.ShareKit';
-import { CaptureDraftState, HandwritingStroke, Idea, IdeaAiOutput, IdeaAsset, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
+import { CaptureDraftState, HandwritingStroke, Idea, IdeaAiOutput, IdeaAsset, IdeaBackupPreview, IdeaDraft, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, StrokePoint, ideaTypeLabel } from '../model/IdeaModels';
 import { audioRecordService } from '../services/AudioRecordService';
 import { PermissionService } from '../services/PermissionService';
 import { floatingBallService } from '../services/FloatingBallService';
@@ -287,9 +287,11 @@ struct Index {
           .buttonStyle(ButtonStyleMode.NORMAL)
           .onClick(async () => {
             try {
+              const preview = await ideaRepository.previewBackupZip();
+              const previewText = this.backupPreviewSummary(preview);
               const result = await ideaRepository.importBackupZip(this.importStrategy);
               const conflictHint = result.conflicts.length > 0 ? `，冲突 ${result.conflicts.length}` : '';
-              this.importStatus = `ZIP导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}${conflictHint}`;
+              this.importStatus = `${previewText}；ZIP导入完成：新增 ${result.inserted}，更新 ${result.updated}，跳过 ${result.skipped}${conflictHint}`;
               await this.reloadIdeas();
             } catch (err) {
               this.importStatus = `ZIP导入失败：${String(err)}`;
@@ -1337,6 +1339,10 @@ struct Index {
       selectionMode: systemShare.SelectionMode.SINGLE
     };
     await this.showSharePanelGuarded(controller, context, options);
+  }
+
+  private backupPreviewSummary(preview: IdeaBackupPreview): string {
+    return `备份预览：来源 ${preview.sourceDevice}，导出时间 ${preview.exportedAt || '未知'}，想法 ${preview.ideaCount}，文件夹 ${preview.folderCount}，标签 ${preview.tagCount}，AI ${preview.aiOutputCount}，附件 ${preview.attachmentCount}`;
   }
 
   private async exportIdeasAsPlainTextFile(): Promise<string> {

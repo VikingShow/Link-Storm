@@ -1,10 +1,11 @@
 import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
+import deviceInfo from '@ohos.deviceInfo';
 import fileIo from '@ohos.file.fs';
 import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import zlib from '@ohos.zlib';
-import { CaptureDraftState, Idea, IdeaAiOutput, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
+import { CaptureDraftState, Idea, IdeaAiOutput, IdeaAsset, IdeaBackupAttachment, IdeaBackupPayload, IdeaBackupPreview, IdeaBackupSourceDevice, IdeaDraft, IdeaExportPayload, IdeaFolder, IdeaTag, IdeaType, ImportConflictStrategy, ImportResult } from '../model/IdeaModels';
 
 const STORE_NAME = 'link_storm_ideas';
 const IDEAS_TABLE = 'ideas';
@@ -50,6 +51,7 @@ type ValuesBucket = relationalStore.ValuesBucket;
 export class IdeaRepository {
   private store?: RdbStore;
   private context?: common.UIAbilityContext;
+  private pendingBackupImportPath: string = '';
 
   async init(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -565,6 +567,7 @@ export class IdeaRepository {
         schema: BACKUP_SCHEMA,
         version: 1,
         exportedAt: new Date().toISOString(),
+        sourceDevice: this.currentBackupSourceDevice(),
         ideas,
         folders: await this.listFolders(),
         tags: await this.listTags(),
@@ -574,6 +577,28 @@ export class IdeaRepository {
       this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
       await this.compressDirectoryGuarded(payloadDir, archivePath);
       return archivePath;
+    } finally {
+      this.cleanupBackupTemp(tempRoot);
+    }
+  }
+
+  async previewBackupZip(): Promise<IdeaBackupPreview> {
+    const context = this.ensureContext();
+    const pickerInstance = new picker.DocumentViewPicker(context);
+    const uris = await pickerInstance.select();
+    if (uris.length === 0) {
+      throw new Error('已取消预览');
+    }
+    const zipPath = this.resolveFilePath(uris[0]);
+    this.pendingBackupImportPath = zipPath;
+    const tempRoot = `${context.cacheDir}/link-storm-preview-${Date.now()}`;
+    const extractDir = `${tempRoot}/extract`;
+    this.ensureDirectory(tempRoot);
+    this.ensureDirectory(extractDir);
+    try {
+      await this.decompressArchiveGuarded(zipPath, extractDir);
+      const parsed = this.readBackupPayload(extractDir);
+      return this.backupPayloadToPreview(parsed);
     } finally {
       this.cleanupBackupTemp(tempRoot);
     }
@@ -591,26 +616,23 @@ export class IdeaRepository {
 
   async importBackupZip(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
     const context = this.ensureContext();
-    const pickerInstance = new picker.DocumentViewPicker(context);
-    const uris = await pickerInstance.select();
-    if (uris.length === 0) {
-      throw new Error('已取消导入');
+    let zipPath = this.pendingBackupImportPath;
+    this.pendingBackupImportPath = '';
+    if (zipPath.length === 0) {
+      const pickerInstance = new picker.DocumentViewPicker(context);
+      const uris = await pickerInstance.select();
+      if (uris.length === 0) {
+        throw new Error('已取消导入');
+      }
+      zipPath = this.resolveFilePath(uris[0]);
     }
-    const zipPath = this.resolveFilePath(uris[0]);
     const tempRoot = `${context.cacheDir}/link-storm-import-${Date.now()}`;
     const extractDir = `${tempRoot}/extract`;
     this.ensureDirectory(tempRoot);
     this.ensureDirectory(extractDir);
     try {
       await this.decompressArchiveGuarded(zipPath, extractDir);
-      const manifest = this.readBackupManifest(extractDir);
-      const parsed = JSON.parse(manifest) as IdeaBackupPayload;
-      if (parsed.schema !== BACKUP_SCHEMA) {
-        throw new Error('备份格式不正确');
-      }
-      if (!Array.isArray(parsed.ideas)) {
-        throw new Error('备份想法数据不正确');
-      }
+      const parsed = this.readBackupPayload(extractDir);
       const importedAttachmentPaths: string[] = [];
       const attachmentsDir = this.prepareImportAttachmentsDir();
       const attachmentMap = this.extractBackupAttachments(parsed.attachments, extractDir, attachmentsDir, importedAttachmentPaths);
@@ -1635,6 +1657,47 @@ export class IdeaRepository {
       return this.readTextFileGuarded(nestedManifest, '读取备份清单失败');
     }
     throw new Error('未找到备份清单');
+  }
+
+  private readBackupPayload(extractDir: string): IdeaBackupPayload {
+    const manifest = this.readBackupManifest(extractDir);
+    const parsed = JSON.parse(manifest) as IdeaBackupPayload;
+    if (parsed.schema !== BACKUP_SCHEMA) {
+      throw new Error('备份格式不正确');
+    }
+    if (!Array.isArray(parsed.ideas)) {
+      throw new Error('备份想法数据不正确');
+    }
+    return parsed;
+  }
+
+  private backupPayloadToPreview(payload: IdeaBackupPayload): IdeaBackupPreview {
+    return {
+      exportedAt: payload.exportedAt || '',
+      sourceDevice: this.describeBackupSourceDevice(payload.sourceDevice),
+      ideaCount: payload.ideas.length,
+      folderCount: Array.isArray(payload.folders) ? payload.folders.length : 0,
+      tagCount: Array.isArray(payload.tags) ? payload.tags.length : 0,
+      aiOutputCount: Array.isArray(payload.aiOutputs) ? payload.aiOutputs.length : 0,
+      attachmentCount: Array.isArray(payload.attachments) ? payload.attachments.length : 0
+    };
+  }
+
+  private currentBackupSourceDevice(): IdeaBackupSourceDevice {
+    const name = deviceInfo.marketName || deviceInfo.productModel || deviceInfo.productModelAlias || deviceInfo.brand || 'unknown';
+    return {
+      name,
+      type: deviceInfo.deviceType || 'unknown',
+      os: deviceInfo.displayVersion || deviceInfo.osFullName || 'unknown'
+    };
+  }
+
+  private describeBackupSourceDevice(source: IdeaBackupSourceDevice | undefined): string {
+    if (!source) {
+      return '未知设备';
+    }
+    const parts = [source.name, source.type, source.os].filter((item: string) => item.length > 0 && item !== 'unknown');
+    return parts.length > 0 ? parts.join(' / ') : '未知设备';
   }
 
   private cleanupBackupTemp(tempRoot: string): void {

@@ -52,6 +52,7 @@ Date: 2026-06-15
 - JSON and ZIP imports now replace ideas, folders, tags, and AI outputs inside one RDB transaction, with failed ZIP imports cleaning newly copied managed attachments
 - Home backup export can now immediately share the generated ZIP package through the native ShareKit panel
 - Home search now also covers folder names, manual context notes, and saved AI organization output content
+- ZIP backup manifests now include source device metadata, and ZIP import shows package counts and source device before applying the import
 
 ## Verified milestone
 
@@ -229,6 +230,10 @@ feat(harmony): share backup zip packages
 
 ```text
 feat(harmony): search ai outputs and folders
+```
+
+```text
+feat(harmony): preview backup zip imports
 ```
 
 Verification:

@@ -55,7 +55,7 @@ export class IdeaRepository {
     try {
       return this.readIdeas(resultSet);
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -64,7 +64,7 @@ export class IdeaRepository {
     try {
       return this.readFolders(resultSet);
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -73,7 +73,7 @@ export class IdeaRepository {
     try {
       return this.readTags(resultSet);
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -326,7 +326,7 @@ export class IdeaRepository {
         await store.insert(CAPTURE_DRAFT_TABLE, this.captureDraftToBucket(record));
       }
     } finally {
-      existing.close();
+      this.closeResultSet(existing);
     }
   }
 
@@ -337,7 +337,7 @@ export class IdeaRepository {
         return this.parseCaptureDraft(resultSet.getString(resultSet.getColumnIndex('payload')));
       }
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
     const legacyDraft = this.loadLegacyCaptureDraft();
     if (legacyDraft) {
@@ -362,7 +362,7 @@ export class IdeaRepository {
       const ideas = this.readIdeas(resultSet);
       return ideas.length > 0 ? ideas[0] : undefined;
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -410,25 +410,28 @@ export class IdeaRepository {
     const attachmentsDir = `${payloadDir}/attachments`;
     const manifestPath = `${payloadDir}/manifest.json`;
     const archivePath = `${context.filesDir}/link-storm-backup-${this.timestampStamp()}${BACKUP_FILE_SUFFIX}`;
-    fileIo.mkdirSync(tempRoot);
-    fileIo.mkdirSync(payloadDir);
-    fileIo.mkdirSync(attachmentsDir);
+    this.ensureDirectory(tempRoot);
+    this.ensureDirectory(payloadDir);
+    this.ensureDirectory(attachmentsDir);
 
-    const backup: IdeaBackupPayload = {
-      schema: BACKUP_SCHEMA,
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      ideas: await this.list(),
-      folders: await this.listFolders(),
-      tags: await this.listTags(),
-      attachments: await this.collectBackupAttachments(await this.list(), attachmentsDir)
-    };
-    this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
-    await zlib.compressFile(payloadDir, archivePath, {
-      level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
-    });
-    this.cleanupBackupTemp(tempRoot);
-    return archivePath;
+    try {
+      const backup: IdeaBackupPayload = {
+        schema: BACKUP_SCHEMA,
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        ideas: await this.list(),
+        folders: await this.listFolders(),
+        tags: await this.listTags(),
+        attachments: await this.collectBackupAttachments(await this.list(), attachmentsDir)
+      };
+      this.writeTextFile(manifestPath, JSON.stringify(backup, null, 2));
+      await zlib.compressFile(payloadDir, archivePath, {
+        level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION
+      });
+      return archivePath;
+    } finally {
+      this.cleanupBackupTemp(tempRoot);
+    }
   }
 
   async importFromFile(strategy: ImportConflictStrategy = ImportConflictStrategy.KEEP_NEWER): Promise<ImportResult> {
@@ -451,8 +454,8 @@ export class IdeaRepository {
     const zipPath = this.resolveFilePath(uris[0]);
     const tempRoot = `${context.cacheDir}/link-storm-import-${Date.now()}`;
     const extractDir = `${tempRoot}/extract`;
-    fileIo.mkdirSync(tempRoot);
-    fileIo.mkdirSync(extractDir);
+    this.ensureDirectory(tempRoot);
+    this.ensureDirectory(extractDir);
     try {
       await zlib.decompressFile(zipPath, extractDir);
       const manifest = this.readBackupManifest(extractDir);
@@ -544,7 +547,7 @@ export class IdeaRepository {
   async copyAttachmentToIdeaStorage(sourcePath: string, ideaId: string, kind: string): Promise<string> {
     const context = this.ensureContext();
     const attachmentsDir = `${context.filesDir}/idea-attachments`;
-    fileIo.mkdirSync(attachmentsDir);
+    this.ensureDirectory(attachmentsDir);
     const safeKind = this.safeName(kind || 'asset');
     const targetPath = `${attachmentsDir}/${ideaId}-${safeKind}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
     fileIo.copyFileSync(sourcePath, targetPath);
@@ -629,7 +632,7 @@ export class IdeaRepository {
   private prepareImportAttachmentsDir(): string {
     const context = this.ensureContext();
     const attachmentsDir = `${context.filesDir}/idea-attachments`;
-    fileIo.mkdirSync(attachmentsDir);
+    this.ensureDirectory(attachmentsDir);
     return attachmentsDir;
   }
 
@@ -640,14 +643,18 @@ export class IdeaRepository {
     }
     for (const attachment of attachments) {
       const sourcePath = `${extractDir}/${attachment.relativePath}`;
-      if (!fileIo.accessSync(sourcePath)) {
+      if (!this.fileExists(sourcePath)) {
         continue;
       }
       const role = attachment.role || 'localUri';
       const fileName = `${attachment.ideaId}-${this.safeName(role)}-${this.safeName(attachment.kind || 'asset')}-${Date.now()}${this.extensionFromPath(sourcePath)}`;
       const targetPath = `${attachmentsDir}/${fileName}`;
-      fileIo.copyFileSync(sourcePath, targetPath);
-      map.set(`${attachment.ideaId}:${role}`, targetPath);
+      try {
+        fileIo.copyFileSync(sourcePath, targetPath);
+        map.set(`${attachment.ideaId}:${role}`, targetPath);
+      } catch {
+        // Skip attachments that cannot be restored from the backup archive.
+      }
     }
     return map;
   }
@@ -880,7 +887,7 @@ export class IdeaRepository {
   private loadLegacyCaptureDraft(): CaptureDraftState | undefined {
     const context = this.ensureContext();
     const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
-    if (!fileIo.accessSync(path)) {
+    if (!this.fileExists(path)) {
       return undefined;
     }
     try {
@@ -893,9 +900,7 @@ export class IdeaRepository {
   private clearLegacyCaptureDraft(): void {
     const context = this.ensureContext();
     const path = `${context.filesDir}/${CAPTURE_DRAFT_KEY}`;
-    if (fileIo.accessSync(path)) {
-      fileIo.unlinkSync(path);
-    }
+    this.removeFileIfExists(path);
   }
 
   private readNullableString(resultSet: relationalStore.ResultSet, columnName: string): string {
@@ -913,7 +918,7 @@ export class IdeaRepository {
       const items = this.readFolders(resultSet);
       return items.length > 0 ? items[0] : undefined;
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
@@ -923,12 +928,20 @@ export class IdeaRepository {
       const items = this.readTags(resultSet);
       return items.length > 0 ? items[0] : undefined;
     } finally {
-      resultSet.close();
+      this.closeResultSet(resultSet);
     }
   }
 
   private predicatesFor(table: string, id: string): relationalStore.RdbPredicates {
     return new relationalStore.RdbPredicates(table).equalTo('id', id);
+  }
+
+  private closeResultSet(resultSet: relationalStore.ResultSet): void {
+    try {
+      resultSet.close();
+    } catch {
+      // Ignore close failures after query results have been consumed.
+    }
   }
 
   private ensureStore(): RdbStore {
@@ -1055,29 +1068,33 @@ export class IdeaRepository {
       return;
     }
     const sourcePath = this.resolveFilePath(path);
-    if (!fileIo.accessSync(sourcePath)) {
+    if (!this.fileExists(sourcePath)) {
       return;
     }
     const fileName = `${ideaId}-${this.safeName(role)}-${this.safeName(kind || 'asset')}${this.extensionFromPath(sourcePath)}`;
     const relativePath = `attachments/${fileName}`;
     const destPath = `${attachmentsDir}/${fileName}`;
-    fileIo.copyFileSync(sourcePath, destPath);
-    entries.push({
-      ideaId,
-      kind,
-      role,
-      sourcePath,
-      relativePath
-    });
+    try {
+      fileIo.copyFileSync(sourcePath, destPath);
+      entries.push({
+        ideaId,
+        kind,
+        role,
+        sourcePath,
+        relativePath
+      });
+    } catch {
+      // Skip attachments that cannot be copied into the backup payload.
+    }
   }
 
   private readBackupManifest(extractDir: string): string {
     const rootManifest = `${extractDir}/manifest.json`;
-    if (fileIo.accessSync(rootManifest)) {
+    if (this.fileExists(rootManifest)) {
       return fileIo.readTextSync(rootManifest);
     }
     const nestedManifest = `${extractDir}/payload/manifest.json`;
-    if (fileIo.accessSync(nestedManifest)) {
+    if (this.fileExists(nestedManifest)) {
       return fileIo.readTextSync(nestedManifest);
     }
     throw new Error('Backup manifest not found');
@@ -1147,10 +1164,14 @@ export class IdeaRepository {
 
   private removeFileIfExists(path: string): void {
     const resolved = this.resolveFilePath(path);
-    if (!fileIo.accessSync(resolved)) {
+    if (!this.fileExists(resolved)) {
       return;
     }
-    fileIo.unlinkSync(resolved);
+    try {
+      fileIo.unlinkSync(resolved);
+    } catch {
+      // Ignore best-effort cleanup failures for managed files.
+    }
   }
 
   private writeTextFile(path: string, text: string): void {
@@ -1158,7 +1179,29 @@ export class IdeaRepository {
     try {
       fileIo.writeSync(file.fd, text, { encoding: 'utf-8' });
     } finally {
-      fileIo.closeSync(file);
+      try {
+        fileIo.closeSync(file);
+      } catch {
+        // Ignore close failures after the write attempt has completed.
+      }
+    }
+  }
+
+  private ensureDirectory(path: string): void {
+    try {
+      if (!this.fileExists(path)) {
+        fileIo.mkdirSync(path);
+      }
+    } catch {
+      // Directory creation is retried by the file operation that needs it.
+    }
+  }
+
+  private fileExists(path: string): boolean {
+    try {
+      return fileIo.accessSync(path);
+    } catch {
+      return false;
     }
   }
 

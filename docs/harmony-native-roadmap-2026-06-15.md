@@ -54,6 +54,7 @@ Date: 2026-06-15
 - Home search now also covers folder names, manual context notes, and saved AI organization output content
 - ZIP backup manifests now include source device metadata, and ZIP import shows package counts and source device before applying the import
 - Home and detail deletion now let users remove only the record or remove the record together with managed local attachments
+- Capture now offers an explicit clipboard read action that fills source links or document text and persists the native capture draft
 
 ## Verified milestone
 
@@ -239,6 +240,10 @@ feat(harmony): preview backup zip imports
 
 ```text
 feat(harmony): choose attachment cleanup on delete
+```
+
+```text
+feat(harmony): capture from clipboard manually
 ```
 
 Verification:

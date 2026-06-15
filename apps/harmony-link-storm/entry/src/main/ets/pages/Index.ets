@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import image from '@ohos.multimedia.image';
 import fileIo from '@ohos.file.fs';
@@ -71,6 +72,7 @@ struct Index {
   @State private tagNameInput: string = '';
   @State private editingTagId: string = '';
   @State private shareCaptureSummary: string = '';
+  @State private clipboardStatus: string = '';
   @State private sharedAttachmentUris: string[] = [];
   @State private audioRecorderState: string = 'idle';
   private handwritingCanvasId: string = 'handwriting-canvas';
@@ -350,6 +352,22 @@ struct Index {
             this.sourceUrl = value;
             void this.persistCaptureDraft();
           })
+          .layoutWeight(1)
+      }
+
+      Row({ space: 10 }) {
+        Button('读取剪贴板')
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .onClick(async () => {
+            try {
+              await this.applyClipboardCapture();
+            } catch (err) {
+              this.clipboardStatus = `读取剪贴板失败：${String(err)}`;
+            }
+          })
+        Text(this.clipboardStatus)
+          .fontSize(12)
+          .fontColor('#697386')
           .layoutWeight(1)
       }
 
@@ -1024,6 +1042,58 @@ struct Index {
     this.shareCaptureSummary = saveStatus;
     this.sharedAttachmentUris = [];
     await this.reloadIdeas();
+  }
+
+  private async applyClipboardCapture(): Promise<void> {
+    const text = await this.readClipboardText();
+    if (text.length === 0) {
+      this.clipboardStatus = '剪贴板没有可用文本';
+      return;
+    }
+    const link = this.firstUrlFromText(text);
+    if (link.length > 0) {
+      this.sourceUrl = link;
+      if (this.sourceTitle.length === 0) {
+        this.sourceTitle = '剪贴板链接';
+      }
+      if (this.documentText.length === 0 && text !== link) {
+        this.documentText = text;
+      }
+      this.clipboardStatus = `已从剪贴板填入来源链接：${link}`;
+    } else {
+      if (this.activeType === IdeaType.DOCUMENT) {
+        this.documentText = this.documentText.length > 0 ? `${this.documentText}\n${text}` : text;
+      } else {
+        this.note = this.note.length > 0 ? `${this.note}\n${text}` : text;
+      }
+      this.clipboardStatus = `已从剪贴板填入文本：${text.length} 字`;
+    }
+    await this.persistCaptureDraft();
+  }
+
+  private async readClipboardText(): Promise<string> {
+    try {
+      const data = await pasteboard.getSystemPasteboard().getData();
+      const recordCount = data.getRecordCount();
+      const parts: string[] = [];
+      for (let index = 0; index < recordCount; index++) {
+        const record = data.getRecord(index);
+        if (record.uri && record.uri.length > 0) {
+          parts.push(record.uri);
+        }
+        if (record.plainText && record.plainText.length > 0) {
+          parts.push(record.plainText);
+        }
+      }
+      return parts.join('\n').trim();
+    } catch (err) {
+      throw new Error(`读取系统剪贴板失败：${String(err)}`);
+    }
+  }
+
+  private firstUrlFromText(text: string): string {
+    const match = text.match(/https?:\/\/[^\s]+/);
+    return match && match.length > 0 ? match[0] : '';
   }
 
   private resetForm(preserveHandwritingPreview: boolean = false): void {

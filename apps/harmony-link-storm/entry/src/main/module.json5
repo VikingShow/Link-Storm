@@ -23,6 +23,16 @@
           ],
           "when": "inuse"
         }
+      },
+      {
+        "name": "ohos.permission.READ_PASTEBOARD",
+        "reason": "$string:pasteboard_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
       }
     ],
     "mainElement": "EntryAbility",

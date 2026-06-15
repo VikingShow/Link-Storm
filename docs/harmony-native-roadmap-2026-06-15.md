@@ -12,6 +12,7 @@ Date: 2026-06-15
 - Attachment replacement now cleans up old managed files
 - Handwriting preview state now persists through the capture draft and uses managed storage
 - ZIP backup import now restores managed attachments and handwriting preview files
+- Floating ball service now keeps state consistent and records graceful fallback errors
 
 ## Verified milestone
 
@@ -29,6 +30,10 @@ feat(harmony): polish managed attachment and handwriting preview flow
 
 ```text
 feat(harmony): restore attachments from backup import
+```
+
+```text
+feat(harmony): harden floating ball fallback state
 ```
 
 Verification:

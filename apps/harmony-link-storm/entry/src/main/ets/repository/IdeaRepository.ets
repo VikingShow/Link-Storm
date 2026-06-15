@@ -1295,7 +1295,7 @@ export class IdeaRepository {
     }
   }
 
-  private async listAllAiOutputs(): Promise<IdeaAiOutput[]> {
+  async listAllAiOutputs(): Promise<IdeaAiOutput[]> {
     const resultSet = await this.queryRowsGuarded(new relationalStore.RdbPredicates(AI_OUTPUTS_TABLE), '读取 AI 结果列表失败');
     try {
       return this.readAiOutputs(resultSet);

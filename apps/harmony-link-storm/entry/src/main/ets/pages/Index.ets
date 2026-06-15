@@ -1088,11 +1088,14 @@ struct Index {
 
   private async reloadAiSearchText(): Promise<void> {
     const next: Record<string, string> = {};
-    for (const idea of this.ideas) {
-      const outputs = await ideaRepository.listAiOutputs(idea.id);
-      next[idea.id] = outputs.map((output: IdeaAiOutput) => {
-        return [output.outputType, output.content, output.sourceIdeaIds.join(' ')].join(' ');
-      }).join(' ');
+    const ideaIds = new Set(this.ideas.map((idea: Idea) => idea.id));
+    const outputs = await ideaRepository.listAllAiOutputs();
+    for (const output of outputs) {
+      if (!ideaIds.has(output.ideaId)) {
+        continue;
+      }
+      const searchText = [output.outputType, output.content, output.sourceIdeaIds.join(' ')].join(' ');
+      next[output.ideaId] = next[output.ideaId] ? `${next[output.ideaId]} ${searchText}` : searchText;
     }
     this.aiSearchTextByIdeaId = next;
   }

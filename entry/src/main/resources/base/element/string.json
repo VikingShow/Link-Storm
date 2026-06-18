@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "LinkStorm local capture module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "LinkStorm"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "LinkStorm"
+    },
+    {
+      "name": "mic_permission_reason",
+      "value": "用于录制语音灵感"
+    },
+    {
+      "name": "float_ball_permission_reason",
+      "value": "用于显示快速捕捉悬浮球"
+    },
+    {
+      "name": "pasteboard_permission_reason",
+      "value": "点击剪贴板捕捉时读取剪贴板文本"
+    }
+  ]
+}

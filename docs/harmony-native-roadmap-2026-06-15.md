@@ -4,7 +4,8 @@ Date: 2026-06-15
 
 ## Current state
 
-- `apps/harmony-link-storm/entry` builds successfully with `devecocli build --modules entry`
+- `entry` now lives at the standard HarmonyOS project root in `C:\Users\SowrJam\workspace\LinkStorm`
+- `entry` builds successfully with `devecocli build --modules entry`
 - `EntryAbility.onNewWant` now re-applies share-capture intents
 - `Detail.ets` now exposes attachment and handwriting preview open actions
 - `IdeaRepository` now uses native `relationalStore` for ideas, folders, and tags
@@ -63,6 +64,8 @@ Date: 2026-06-15
 - Home cards and detail pages now let users mark records as local-only or synced after reviewing sync/import conflicts
 - Home filters now include local-only, pending-sync, synced, and conflict sync states with localized filter summaries
 - Home now includes a settings and permission fallback panel for microphone retry, floating-ball fallback, sharing, screenshot fallback, and ZIP backup migration
+- The native app has been migrated from the previous `apps/harmony-link-storm` wrapper into the standard HarmonyOS repository layout at `C:\Users\SowrJam\workspace\LinkStorm`, preserving the standard backup extension scaffold
+- ZIP backup export now supports password-based AES-GCM encrypted payload packages with PBKDF2 key derivation, and ZIP import can decrypt encrypted packages with an import password
 
 ## Verified milestone
 
@@ -286,6 +289,10 @@ feat(harmony): filter ideas by sync status
 feat(harmony): add settings fallback panel
 ```
 
+```text
+chore(harmony): migrate to standard project root
+```
+
 Verification:
 
 ```text
@@ -295,13 +302,13 @@ node C:\Users\SowrJam\workspace\_tools\deveco-cli\dist\cli.js build --modules en
 Unsigned HAP output:
 
 ```text
-apps/harmony-link-storm/entry/build/default/outputs/default/entry-default-unsigned.hap
+entry/build/default/outputs/default/entry-default-unsigned.hap
 ```
 
 Signing state:
 
 ```text
-apps/harmony-link-storm/build-profile.json5 has an empty signingConfigs array.
+C:\Users\SowrJam\workspace\LinkStorm\build-profile.json5 has an empty signingConfigs array.
 ```
 
 Result:
@@ -314,6 +321,7 @@ Remaining build warnings:
 
 ```text
 AudioRecordService uses microphone recording APIs; module.json5 already declares ohos.permission.MICROPHONE.
+CryptoFramework encryption calls are reported by ArkTS as throwable and are guarded by the backup export/import flow.
 Project signing remains intentionally unconfigured.
 ```
 

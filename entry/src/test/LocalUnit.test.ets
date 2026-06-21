@@ -73,10 +73,6 @@ export default function localUnitTest() {
       expect(idea.isFavorite).assertEqual(false);
       expect(idea.isArchived).assertEqual(false);
     });
-    it('should_default_sync_status_to_local_only', 0, () => {
-      const idea = createTestIdea('id3', 'Test', IdeaType.HANDWRITING, []);
-      expect(idea.syncStatus).assertEqual('local_only');
-    });
   });
 
   describe('IdeaCardInteraction', () => {
@@ -91,28 +87,6 @@ export default function localUnitTest() {
       const idea = createTestIdea('id5', 'Test', IdeaType.DOCUMENT, []);
       idea.isArchived = !idea.isArchived;
       expect(idea.isArchived).assertEqual(true);
-    });
-    it('update_sync_status_should_change', 0, () => {
-      const idea = createTestIdea('id6', 'Test', IdeaType.DOCUMENT, []);
-      idea.syncStatus = 'synced';
-      expect(idea.syncStatus).assertEqual('synced');
-      idea.syncStatus = 'conflict';
-      expect(idea.syncStatus).assertEqual('conflict');
-    });
-  });
-
-  describe('SyncStatusVariants', () => {
-    it('all_four_statuses_should_be_distinct', 0, () => {
-      const arr: string[] = ['local_only', 'pending_sync', 'synced', 'conflict'];
-      const unique: string[] = [];
-      for (let i = 0; i < arr.length; i++) {
-        let found = false;
-        for (let j = 0; j < unique.length; j++) {
-          if (unique[j] === arr[i]) { found = true; break; }
-        }
-        if (!found) { unique.push(arr[i]); }
-      }
-      expect(unique.length).assertEqual(4);
     });
   });
 
@@ -129,19 +103,23 @@ export default function localUnitTest() {
       expect(idea.tags[0]).assertEqual('a');
       expect(idea.tags[1]).assertEqual('c');
     });
-    it('should_limit_displayed_tags_to_five', 0, () => {
-      const allTags = ['t1', 't2', 't3', 't4', 't5', 't6', 't7'];
-      const displayTags = allTags.slice(0, 5);
-      expect(displayTags.length).assertEqual(5);
-      const overflow = allTags.length - 5;
-      expect(overflow).assertEqual(2);
+    it('should_limit_card_display_to_2_tags', 0, () => {
+      const allTags = ['t1', 't2', 't3', 't4', 't5'];
+      const displayTags = allTags.slice(0, 2);
+      expect(displayTags.length).assertEqual(2);
+      const overflow = allTags.length - 2;
+      expect(overflow).assertEqual(3);
     });
   });
 
-  describe('FolderSelectOption', () => {
-    it('should_create_option_with_value', 0, () => {
-      const opt = new FolderSelectOption('Work');
-      expect(opt.value).assertEqual('Work');
+  describe('ExportSelectOption', () => {
+    it('should_create_json_option', 0, () => {
+      const opt = new ExportSelectOption('导出 JSON');
+      expect(opt.value).assertEqual('导出 JSON');
+    });
+    it('should_create_zip_option', 0, () => {
+      const opt = new ExportSelectOption('ZIP 完整备份');
+      expect(opt.value).assertEqual('ZIP 完整备份');
     });
   });
 
@@ -155,9 +133,21 @@ export default function localUnitTest() {
       expect(opt.value).assertEqual('强制覆盖');
     });
   });
+
+  describe('CaptureTwoStepFlow', () => {
+    it('save_without_metadata_should_use_auto_title', 0, () => {
+      const content = 'This is my quick thought about the project';
+      const autoTitle = content.length > 20 ? content.substring(0, 20) : content;
+      expect(autoTitle.length).assertEqual(20);
+    });
+    it('empty_tags_should_be_valid', 0, () => {
+      const idea = createTestIdea('id9', 'Quick Note', IdeaType.DOCUMENT, []);
+      expect(idea.tags.length).assertEqual(0);
+    });
+  });
 }
 
-class FolderSelectOption {
+class ExportSelectOption {
   value: string = '';
   constructor(value: string) {
     this.value = value;

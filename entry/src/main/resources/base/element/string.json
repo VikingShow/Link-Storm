@@ -495,6 +495,82 @@
     {
       "name": "idea_count",
       "value": "%d 条"
+    },
+    {
+      "name": "section_source_attachments",
+      "value": "来源与附件"
+    },
+    {
+      "name": "section_category_info",
+      "value": "分类与信息"
+    },
+    {
+      "name": "replace_attachment",
+      "value": "更换附件"
+    },
+    {
+      "name": "remove_attachment",
+      "value": "移除附件"
+    },
+    {
+      "name": "created_at",
+      "value": "创建时间"
+    },
+    {
+      "name": "updated_at",
+      "value": "更新时间"
+    },
+    {
+      "name": "export_and_backup",
+      "value": "导出与备份"
+    },
+    {
+      "name": "export_select_placeholder",
+      "value": "选择操作"
+    },
+    {
+      "name": "export_option_json",
+      "value": "导出 JSON"
+    },
+    {
+      "name": "export_option_markdown",
+      "value": "导出 Markdown"
+    },
+    {
+      "name": "export_option_plaintext",
+      "value": "导出纯文本"
+    },
+    {
+      "name": "export_option_zip_backup",
+      "value": "ZIP 完整备份"
+    },
+    {
+      "name": "export_option_share",
+      "value": "分享..."
+    },
+    {
+      "name": "filter_toggle",
+      "value": "筛选"
+    },
+    {
+      "name": "filter_collapse",
+      "value": "收起筛选"
+    },
+    {
+      "name": "note_expand",
+      "value": "添加备注"
+    },
+    {
+      "name": "note_collapse",
+      "value": "收起备注"
+    },
+    {
+      "name": "all_folders",
+      "value": "全部文件夹"
+    },
+    {
+      "name": "all_tags",
+      "value": "全部标签"
     }
   ]
 }

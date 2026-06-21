@@ -1,5 +1,4 @@
 import { IdeaType, StrokePoint, HandwritingStroke } from '../model/IdeaModels';
-import { audioRecordService } from '../services/AudioRecordService';
 
 const STROKE_COLOR = '#111827';
 const STROKE_WIDTH = 3;
@@ -16,7 +15,7 @@ export struct CaptureEditorComponent {
   @Link handwritingText: string;
   @Link handwritingStrokes: HandwritingStroke[];
   @Link currentStrokePoints: StrokePoint[];
-  @Link note: string;
+  @Prop note: string = '';
   onPersistDraft: () => void = () => {};
   onAudioStart: () => void = () => {};
   onAudioPause: () => void = () => {};
@@ -56,14 +55,6 @@ export struct CaptureEditorComponent {
         this.onPersistDraft();
       })
       .height(280)
-
-      TextArea({ placeholder: $r('app.string.note_placeholder'), text: this.note })
-        .height(76)
-        .onChange((value: string) => {
-          this.note = value;
-          this.onPersistDraft();
-        })
-        .margin({ top: 12 })
     }
   }
 
@@ -152,7 +143,7 @@ export struct CaptureEditorComponent {
         Row() {
           Text('\u{1F3B5}')
             .fontSize(16)
-          Text(`${Math.round(this.audioDurationMs / 1000)}s`)
+          Text(Math.round(this.audioDurationMs / 1000).toString() + 's')
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
             .margin({ left: 4 })
@@ -225,7 +216,7 @@ export struct CaptureEditorComponent {
     const characters = text.length;
     const words = trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter((word: string) => word.length > 0).length;
     const lines = text.length === 0 ? 0 : text.split('\n').length;
-    return `\u5B57\u6570 ${characters}\uFF0C\u8BCD\u6570 ${words}\uFF0C\u884C\u6570 ${lines}`;
+    return '\u5B57\u6570 ' + characters.toString() + '\uFF0C\u8BCD\u6570 ' + words.toString() + '\uFF0C\u884C\u6570 ' + lines.toString();
   }
 
   private handleCanvasTouch(event: TouchEvent): void {

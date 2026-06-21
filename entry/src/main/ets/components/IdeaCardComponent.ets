@@ -133,6 +133,17 @@ export struct IdeaCardComponent {
     .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
     .border(this.isSelected ? { width: 2, color: $r('app.color.brand_primary') } : undefined)
     .onClick(() => this.onToggleSelect(this.idea.id))
+    .stateStyles({
+      pressed: {
+        .shadow({ radius: 16, color: $r('app.color.card_shadow'), offsetY: 4 })
+        .scale({ x: 0.98, y: 0.98 })
+      },
+      normal: {
+        .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
+        .scale({ x: 1, y: 1 })
+      }
+    })
+    .animation({ duration: 200, curve: Curve.EaseOut })
   }
 
   private previewText(): string {

@@ -76,10 +76,12 @@ struct Detail {
           }
         }
         .padding(16)
+        .constraintSize({ maxWidth: 720 })
       }
       .width('100%')
       .height('100%')
       .scrollBar(BarState.Auto)
+      .align(Alignment.Top)
     }
     .title($r('app.string.detail_title'))
     .titleMode(NavigationTitleMode.Mini)
@@ -101,74 +103,77 @@ struct Detail {
         Text(this.sourceExpanded ? '\u25B2' : '\u25BC')
           .fontSize(12)
           .fontColor($r('app.color.icon_secondary'))
-          .onClick(() => this.sourceExpanded = !this.sourceExpanded)
+          .onClick(() => this.getUIContext()?.animateTo({ duration: 250, curve: Curve.EaseOut }, () => { this.sourceExpanded = !this.sourceExpanded; }))
       }
       .width('100%')
 
       if (this.sourceExpanded) {
-        Text(this.contextSummary())
-          .fontSize(13)
-          .fontColor($r('app.color.text_secondary'))
-          .width('100%')
-
-        Row({ space: 8 }) {
-          Button($r('app.string.open_source'))
+        Column({ space: 8 }) {
+          Text(this.contextSummary())
             .fontSize(13)
-            .height(32)
-            .padding({ left: 12, right: 12 })
-            .backgroundColor($r('app.color.brand_primary'))
-            .fontColor(Color.White)
-            .borderRadius(16)
-            .enabled(this.normalizeSourceUrl(this.sourceUrl || this.idea?.context.url || '').length > 0)
-            .onClick(() => { void this.openSourceUrl(); })
-          if ((this.sourceUrl || this.idea?.context.url || '').length > 0) {
-            Text(this.sourceUrl || this.idea?.context.url)
+            .fontColor($r('app.color.text_secondary'))
+            .width('100%')
+
+          Row({ space: 8 }) {
+            Button($r('app.string.open_source'))
+              .fontSize(13)
+              .height(32)
+              .padding({ left: 12, right: 12 })
+              .backgroundColor($r('app.color.brand_primary'))
+              .fontColor(Color.White)
+              .borderRadius(16)
+              .enabled(this.normalizeSourceUrl(this.sourceUrl || this.idea?.context.url || '').length > 0)
+              .onClick(() => { void this.openSourceUrl(); })
+            if ((this.sourceUrl || this.idea?.context.url || '').length > 0) {
+              Text(this.sourceUrl || this.idea?.context.url)
+                .fontSize(12)
+                .fontColor($r('app.color.brand_primary'))
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+          }
+
+          if (this.idea && this.idea.context.manualNote.length > 0) {
+            Text(this.idea.context.manualNote)
               .fontSize(12)
-              .fontColor($r('app.color.brand_primary'))
-              .layoutWeight(1)
-              .maxLines(1)
+              .fontColor($r('app.color.text_tertiary'))
+              .maxLines(3)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
-        }
 
-        if (this.idea && this.idea.context.manualNote.length > 0) {
-          Text(this.idea.context.manualNote)
-            .fontSize(12)
-            .fontColor($r('app.color.text_tertiary'))
-            .maxLines(3)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-
-        Row() {
-          Text(this.idea ? ideaTypeLabel(this.idea.type) : '')
-            .fontSize(12)
-            .fontColor($r('app.color.chip_text_selected'))
-            .backgroundColor($r('app.color.chip_bg_selected'))
-            .borderRadius(12)
-            .padding({ left: 10, right: 10, top: 3, bottom: 3 })
-          if (this.idea) {
-            Row({ space: 6 }) {
-              Text(this.syncStatusLabel(this.idea.syncStatus))
-                .fontSize(11)
-                .fontColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger') : $r('app.color.chip_text_selected'))
-                .backgroundColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger_bg') : $r('app.color.chip_bg_selected'))
-                .borderRadius(10)
-                .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-              if (this.idea.syncStatus !== 'local_only') {
-                Text($r('app.string.mark_local'))
+          Row() {
+            Text(this.idea ? ideaTypeLabel(this.idea.type) : '')
+              .fontSize(12)
+              .fontColor($r('app.color.chip_text_selected'))
+              .backgroundColor($r('app.color.chip_bg_selected'))
+              .borderRadius(12)
+              .padding({ left: 10, right: 10, top: 3, bottom: 3 })
+            if (this.idea) {
+              Row({ space: 6 }) {
+                Text(this.syncStatusLabel(this.idea.syncStatus))
                   .fontSize(11)
-                  .fontColor($r('app.color.brand_primary'))
-                  .onClick(() => { void this.updateSyncStatus('local_only'); })
-              }
-              if (this.idea.syncStatus !== 'synced') {
-                Text($r('app.string.mark_synced'))
-                  .fontSize(11)
-                  .fontColor($r('app.color.brand_primary'))
-                  .onClick(() => { void this.updateSyncStatus('synced'); })
+                  .fontColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger') : $r('app.color.chip_text_selected'))
+                  .backgroundColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger_bg') : $r('app.color.chip_bg_selected'))
+                  .borderRadius(10)
+                  .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+                if (this.idea.syncStatus !== 'local_only') {
+                  Text($r('app.string.mark_local'))
+                    .fontSize(11)
+                    .fontColor($r('app.color.brand_primary'))
+                    .onClick(() => { void this.updateSyncStatus('local_only'); })
+                }
+                if (this.idea.syncStatus !== 'synced') {
+                  Text($r('app.string.mark_synced'))
+                    .fontSize(11)
+                    .fontColor($r('app.color.brand_primary'))
+                    .onClick(() => { void this.updateSyncStatus('synced'); })
+                }
               }
             }
           }
         }
+        .transition(TransitionEffect.OPACITY.animation({ duration: 250, curve: Curve.EaseOut }))
       }
     }
     .padding(16)
@@ -190,148 +195,151 @@ struct Detail {
         Text(this.assetExpanded ? '\u25B2' : '\u25BC')
           .fontSize(12)
           .fontColor($r('app.color.icon_secondary'))
-          .onClick(() => this.assetExpanded = !this.assetExpanded)
+          .onClick(() => this.getUIContext()?.animateTo({ duration: 250, curve: Curve.EaseOut }, () => { this.assetExpanded = !this.assetExpanded; }))
       }
       .width('100%')
 
       if (this.assetExpanded) {
-        if (this.getAsset()?.previewPath && this.getAsset()?.type === 'handwriting') {
-          Image(this.getAsset()!.previewPath)
-            .width('100%')
-            .height(220)
-            .objectFit(ImageFit.Contain)
-            .borderRadius(8)
-        }
+        Column({ space: 8 }) {
+          if (this.getAsset()?.previewPath && this.getAsset()?.type === 'handwriting') {
+            Image(this.getAsset()!.previewPath)
+              .width('100%')
+              .height(220)
+              .objectFit(ImageFit.Contain)
+              .borderRadius(8)
+          }
 
-        if (this.getAsset()?.type === 'handwriting') {
-          Text(`\u270D\uFE0F 手写笔画：${this.getAsset()?.strokes?.length ?? 0}`)
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
-        }
-
-        if (this.isPlayableAudio()) {
-          Column({ space: 8 }) {
-            Row({ space: 8 }) {
-              Button($r('app.string.play_audio'))
-                .fontSize(13)
-                .height(32)
-                .padding({ left: 12, right: 12 })
-                .backgroundColor($r('app.color.brand_primary'))
-                .fontColor(Color.White)
-                .borderRadius(16)
-                .onClick(() => { void this.playAudioAsset(); })
-              Button($r('app.string.pause_audio'))
-                .fontSize(13)
-                .height(32)
-                .padding({ left: 12, right: 12 })
-                .backgroundColor($r('app.color.surface_secondary'))
-                .fontColor($r('app.color.text_primary'))
-                .borderRadius(16)
-                .enabled(this.playbackState === 'playing')
-                .onClick(() => { void this.pauseAudioAsset(); })
-              Button($r('app.string.stop_audio'))
-                .fontSize(13)
-                .height(32)
-                .padding({ left: 12, right: 12 })
-                .backgroundColor($r('app.color.surface_secondary'))
-                .fontColor($r('app.color.text_primary'))
-                .borderRadius(16)
-                .enabled(this.playbackState !== 'idle')
-                .onClick(() => { void this.stopAudioAsset(); })
-            }
-            Text(`\u{1F3B5} 播放状态：${this.playbackState}`)
-              .fontSize(12)
+          if (this.getAsset()?.type === 'handwriting') {
+            Text(`\u270D\uFE0F 手写笔画：${this.getAsset()?.strokes?.length ?? 0}`)
+              .fontSize(13)
               .fontColor($r('app.color.text_secondary'))
           }
-        }
 
-        Row({ space: 8 }) {
-          Button($r('app.string.select_attachment'))
-            .fontSize(12)
-            .height(28)
-            .padding({ left: 10, right: 10 })
-            .backgroundColor($r('app.color.surface_secondary'))
-            .fontColor($r('app.color.brand_primary'))
-            .borderRadius(14)
-            .onClick(async () => {
-              try {
-                const asset = await ideaRepository.replaceIdeaAsset(this.ideaId);
-                if (asset) {
-                  this.attachmentStatus = `已选择：${asset.localUri}`;
-                  await this.reload();
-                } else {
-                  this.attachmentStatus = '已取消选择';
+          if (this.isPlayableAudio()) {
+            Column({ space: 8 }) {
+              Row({ space: 8 }) {
+                Button($r('app.string.play_audio'))
+                  .fontSize(13)
+                  .height(32)
+                  .padding({ left: 12, right: 12 })
+                  .backgroundColor($r('app.color.brand_primary'))
+                  .fontColor(Color.White)
+                  .borderRadius(16)
+                  .onClick(() => { void this.playAudioAsset(); })
+                Button($r('app.string.pause_audio'))
+                  .fontSize(13)
+                  .height(32)
+                  .padding({ left: 12, right: 12 })
+                  .backgroundColor($r('app.color.surface_secondary'))
+                  .fontColor($r('app.color.text_primary'))
+                  .borderRadius(16)
+                  .enabled(this.playbackState === 'playing')
+                  .onClick(() => { void this.pauseAudioAsset(); })
+                Button($r('app.string.stop_audio'))
+                  .fontSize(13)
+                  .height(32)
+                  .padding({ left: 12, right: 12 })
+                  .backgroundColor($r('app.color.surface_secondary'))
+                  .fontColor($r('app.color.text_primary'))
+                  .borderRadius(16)
+                  .enabled(this.playbackState !== 'idle')
+                  .onClick(() => { void this.stopAudioAsset(); })
+              }
+              Text(`\u{1F3B5} 播放状态：${this.playbackState}`)
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+            }
+          }
+
+          Row({ space: 8 }) {
+            Button($r('app.string.select_attachment'))
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 10, right: 10 })
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(14)
+              .onClick(async () => {
+                try {
+                  const asset = await ideaRepository.replaceIdeaAsset(this.ideaId);
+                  if (asset) {
+                    this.attachmentStatus = `已选择：${asset.localUri}`;
+                    await this.reload();
+                  } else {
+                    this.attachmentStatus = '已取消选择';
+                  }
+                } catch (err) {
+                  this.attachmentStatus = `选择失败：${String(err)}`;
                 }
-              } catch (err) {
-                this.attachmentStatus = `选择失败：${String(err)}`;
-              }
-            })
-          if (this.assetLocalUri.length > 0) {
-            Button($r('app.string.open_attachment'))
+              })
+            if (this.assetLocalUri.length > 0) {
+              Button($r('app.string.open_attachment'))
+                .fontSize(12)
+                .height(28)
+                .padding({ left: 10, right: 10 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.brand_primary'))
+                .borderRadius(14)
+                .onClick(() => { void this.openAttachment(this.assetLocalUri); })
+            }
+            Button($r('app.string.clear_attachment'))
               .fontSize(12)
               .height(28)
               .padding({ left: 10, right: 10 })
-              .backgroundColor($r('app.color.surface_secondary'))
-              .fontColor($r('app.color.brand_primary'))
+              .backgroundColor($r('app.color.danger_bg'))
+              .fontColor($r('app.color.danger'))
               .borderRadius(14)
-              .onClick(() => { void this.openAttachment(this.assetLocalUri); })
+              .onClick(async () => {
+                try {
+                  await ideaRepository.clearIdeaAsset(this.ideaId);
+                  this.attachmentStatus = '已清除附件';
+                  await this.reload();
+                } catch (err) {
+                  this.attachmentStatus = `清除失败：${String(err)}`;
+                }
+              })
           }
-          Button($r('app.string.clear_attachment'))
-            .fontSize(12)
-            .height(28)
-            .padding({ left: 10, right: 10 })
-            .backgroundColor($r('app.color.danger_bg'))
-            .fontColor($r('app.color.danger'))
-            .borderRadius(14)
-            .onClick(async () => {
-              try {
-                await ideaRepository.clearIdeaAsset(this.ideaId);
-                this.attachmentStatus = '已清除附件';
-                await this.reload();
-              } catch (err) {
-                this.attachmentStatus = `清除失败：${String(err)}`;
-              }
-            })
-        }
 
-        Row({ space: 8 }) {
-          if (this.assetLocalUri.length > 0) {
-            Button($r('app.string.export_attachment'))
-              .fontSize(12)
-              .height(28)
-              .padding({ left: 10, right: 10 })
-              .backgroundColor($r('app.color.surface_secondary'))
-              .fontColor($r('app.color.brand_primary'))
-              .borderRadius(14)
-              .onClick(() => { void this.exportCurrentAttachment(); })
+          Row({ space: 8 }) {
+            if (this.assetLocalUri.length > 0) {
+              Button($r('app.string.export_attachment'))
+                .fontSize(12)
+                .height(28)
+                .padding({ left: 10, right: 10 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.brand_primary'))
+                .borderRadius(14)
+                .onClick(() => { void this.exportCurrentAttachment(); })
+            }
+            if (this.assetPreviewPath.length > 0) {
+              Button($r('app.string.export_preview'))
+                .fontSize(12)
+                .height(28)
+                .padding({ left: 10, right: 10 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.brand_primary'))
+                .borderRadius(14)
+                .onClick(() => { void this.exportPreviewImage(); })
+            }
+            if ((this.getAsset()?.strokes?.length ?? 0) > 0) {
+              Button($r('app.string.export_handwriting_json'))
+                .fontSize(12)
+                .height(28)
+                .padding({ left: 10, right: 10 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.brand_primary'))
+                .borderRadius(14)
+                .onClick(() => { void this.exportHandwritingJson(); })
+            }
           }
-          if (this.assetPreviewPath.length > 0) {
-            Button($r('app.string.export_preview'))
-              .fontSize(12)
-              .height(28)
-              .padding({ left: 10, right: 10 })
-              .backgroundColor($r('app.color.surface_secondary'))
-              .fontColor($r('app.color.brand_primary'))
-              .borderRadius(14)
-              .onClick(() => { void this.exportPreviewImage(); })
-          }
-          if ((this.getAsset()?.strokes?.length ?? 0) > 0) {
-            Button($r('app.string.export_handwriting_json'))
-              .fontSize(12)
-              .height(28)
-              .padding({ left: 10, right: 10 })
-              .backgroundColor($r('app.color.surface_secondary'))
-              .fontColor($r('app.color.brand_primary'))
-              .borderRadius(14)
-              .onClick(() => { void this.exportHandwritingJson(); })
-          }
-        }
 
-        if (this.attachmentStatus.length > 0) {
-          Text(this.attachmentStatus)
-            .fontSize(12)
-            .fontColor($r('app.color.text_tertiary'))
+          if (this.attachmentStatus.length > 0) {
+            Text(this.attachmentStatus)
+              .fontSize(12)
+              .fontColor($r('app.color.text_tertiary'))
+          }
         }
+        .transition(TransitionEffect.OPACITY.animation({ duration: 250, curve: Curve.EaseOut }))
       }
     }
     .padding(16)
@@ -427,88 +435,91 @@ struct Detail {
         Text(this.aiExpanded ? '\u25B2' : '\u25BC')
           .fontSize(12)
           .fontColor($r('app.color.icon_secondary'))
-          .onClick(() => this.aiExpanded = !this.aiExpanded)
+          .onClick(() => this.getUIContext()?.animateTo({ duration: 250, curve: Curve.EaseOut }, () => { this.aiExpanded = !this.aiExpanded; }))
       }
       .width('100%')
 
       if (this.aiExpanded) {
-        Text('结果保存在独立记录中，不覆盖原始想法。')
-          .fontSize(12)
-          .fontColor($r('app.color.text_tertiary'))
-          .width('100%')
-
-        Scroll() {
-          Row({ space: 6 }) {
-            this.AiTypeChip('summary', '摘要')
-            this.AiTypeChip('action_items', '行动项')
-            this.AiTypeChip('questions', '问题')
-            this.AiTypeChip('transcription', '转写')
-            this.AiTypeChip('ocr', 'OCR')
-            this.AiTypeChip('tags', '自动标签')
-          }
-        }
-        .scrollable(ScrollDirection.Horizontal)
-        .scrollBar(BarState.Off)
-        .width('100%')
-
-        TextArea({ text: this.aiDraftContent, placeholder: `录入${this.aiOutputTypeLabel(this.aiDraftType)}结果` })
-          .height(80)
-          .onChange((value: string) => this.aiDraftContent = value)
-
-        Row({ space: 8 }) {
-          Button(`${$r('app.string.save_ai_output')}`)
-            .fontSize(13)
-            .height(36)
-            .backgroundColor($r('app.color.brand_primary'))
-            .fontColor(Color.White)
-            .borderRadius(18)
-            .enabled(this.aiDraftContent.trim().length > 0)
-            .onClick(() => { void this.saveAiDraft(); })
-          Button($r('app.string.refresh_ai'))
-            .fontSize(13)
-            .height(36)
-            .backgroundColor($r('app.color.surface_secondary'))
-            .fontColor($r('app.color.brand_primary'))
-            .borderRadius(18)
-            .onClick(() => { void this.reloadAiOutputs(); })
-        }
-
-        if (this.aiOutputs.length > 0) {
-          Column({ space: 8 }) {
-            ForEach(this.aiOutputs, (output: IdeaAiOutput) => {
-              Row({ space: 8 }) {
-                Column({ space: 4 }) {
-                  Text(this.aiOutputTypeLabel(output.outputType))
-                    .fontSize(12)
-                    .fontColor($r('app.color.brand_primary'))
-                    .fontWeight(FontWeight.Bold)
-                  Text(output.content)
-                    .fontSize(13)
-                    .fontColor($r('app.color.text_primary'))
-                    .maxLines(3)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                }
-                .layoutWeight(1)
-                .alignItems(HorizontalAlign.Start)
-                Text('\u2716')
-                  .fontSize(14)
-                  .fontColor($r('app.color.danger'))
-                  .padding(8)
-                  .onClick(() => { void this.deleteAiOutput(output.id); })
-              }
-              .width('100%')
-              .padding(12)
-              .backgroundColor($r('app.color.surface_secondary'))
-              .borderRadius(8)
-            }, (output: IdeaAiOutput) => output.id)
-          }
-        }
-
-        if (this.aiStatusMessage.length > 0) {
-          Text(this.aiStatusMessage)
+        Column({ space: 8 }) {
+          Text('结果保存在独立记录中，不覆盖原始想法。')
             .fontSize(12)
             .fontColor($r('app.color.text_tertiary'))
+            .width('100%')
+
+          Scroll() {
+            Row({ space: 6 }) {
+              this.AiTypeChip('summary', '摘要')
+              this.AiTypeChip('action_items', '行动项')
+              this.AiTypeChip('questions', '问题')
+              this.AiTypeChip('transcription', '转写')
+              this.AiTypeChip('ocr', 'OCR')
+              this.AiTypeChip('tags', '自动标签')
+            }
+          }
+          .scrollable(ScrollDirection.Horizontal)
+          .scrollBar(BarState.Off)
+          .width('100%')
+
+          TextArea({ text: this.aiDraftContent, placeholder: `录入${this.aiOutputTypeLabel(this.aiDraftType)}结果` })
+            .height(80)
+            .onChange((value: string) => this.aiDraftContent = value)
+
+          Row({ space: 8 }) {
+            Button(`${$r('app.string.save_ai_output')}`)
+              .fontSize(13)
+              .height(36)
+              .backgroundColor($r('app.color.brand_primary'))
+              .fontColor(Color.White)
+              .borderRadius(18)
+              .enabled(this.aiDraftContent.trim().length > 0)
+              .onClick(() => { void this.saveAiDraft(); })
+            Button($r('app.string.refresh_ai'))
+              .fontSize(13)
+              .height(36)
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(18)
+              .onClick(() => { void this.reloadAiOutputs(); })
+          }
+
+          if (this.aiOutputs.length > 0) {
+            Column({ space: 8 }) {
+              ForEach(this.aiOutputs, (output: IdeaAiOutput) => {
+                Row({ space: 8 }) {
+                  Column({ space: 4 }) {
+                    Text(this.aiOutputTypeLabel(output.outputType))
+                      .fontSize(12)
+                      .fontColor($r('app.color.brand_primary'))
+                      .fontWeight(FontWeight.Bold)
+                    Text(output.content)
+                      .fontSize(13)
+                      .fontColor($r('app.color.text_primary'))
+                      .maxLines(3)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  }
+                  .layoutWeight(1)
+                  .alignItems(HorizontalAlign.Start)
+                  Text('\u2716')
+                    .fontSize(14)
+                    .fontColor($r('app.color.danger'))
+                    .padding(8)
+                    .onClick(() => { void this.deleteAiOutput(output.id); })
+                }
+                .width('100%')
+                .padding(12)
+                .backgroundColor($r('app.color.surface_secondary'))
+                .borderRadius(8)
+              }, (output: IdeaAiOutput) => output.id)
+            }
+          }
+
+          if (this.aiStatusMessage.length > 0) {
+            Text(this.aiStatusMessage)
+              .fontSize(12)
+              .fontColor($r('app.color.text_tertiary'))
+          }
         }
+        .transition(TransitionEffect.OPACITY.animation({ duration: 250, curve: Curve.EaseOut }))
       }
     }
     .padding(16)

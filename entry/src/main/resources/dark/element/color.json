@@ -103,6 +103,14 @@
     {
       "name": "divider",
       "value": "#374151"
+    },
+    {
+      "name": "canvas_stroke",
+      "value": "#F9FAFB"
+    },
+    {
+      "name": "default_tag_color",
+      "value": "#2DD4A8"
     }
   ]
 }

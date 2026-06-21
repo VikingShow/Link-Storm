@@ -25,10 +25,7 @@ class ImportSelectOption {
 
 const PHONE_BREAKPOINT = 680;
 const TABLET_BREAKPOINT = 1100;
-const STROKE_COLOR = '#111827';
-const STROKE_WIDTH = 3;
 const CANVAS_WIDTH = 900;
-const CANVAS_HEIGHT = 240;
 const PAGE_ROOT_ID = 'link-storm-page-root';
 
 interface ScreenshotFallbackResult {
@@ -437,6 +434,7 @@ struct Index {
         .width('100%')
         .layoutWeight(1)
         .scrollBar(BarState.Auto)
+        .lanes(this.layoutMode === 'desktop' ? { minLength: 320, maxLength: 480 } : { minLength: 0, maxLength: 0 })
       }
       .onRefreshing(async () => {
         await this.reloadIdeas();

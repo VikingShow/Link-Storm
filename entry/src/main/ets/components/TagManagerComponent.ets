@@ -89,6 +89,7 @@ export struct TagManagerComponent {
     .width('100%')
     .backgroundColor($r('app.color.surface_primary'))
     .borderRadius(12)
+    .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
   }
 
   private async saveTagFromInput(): Promise<void> {

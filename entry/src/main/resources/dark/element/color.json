@@ -3,6 +3,106 @@
     {
       "name": "start_window_background",
       "value": "#000000"
+    },
+    {
+      "name": "brand_primary",
+      "value": "#2DD4A8"
+    },
+    {
+      "name": "brand_light",
+      "value": "#1A3D37"
+    },
+    {
+      "name": "brand_dark",
+      "value": "#5EEAD4"
+    },
+    {
+      "name": "surface_primary",
+      "value": "#1F2937"
+    },
+    {
+      "name": "surface_secondary",
+      "value": "#1A1F2B"
+    },
+    {
+      "name": "surface_page",
+      "value": "#111827"
+    },
+    {
+      "name": "text_primary",
+      "value": "#F9FAFB"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#9CA3AF"
+    },
+    {
+      "name": "text_tertiary",
+      "value": "#9CA3AF"
+    },
+    {
+      "name": "text_brand",
+      "value": "#2DD4A8"
+    },
+    {
+      "name": "border_light",
+      "value": "#374151"
+    },
+    {
+      "name": "danger",
+      "value": "#F87171"
+    },
+    {
+      "name": "danger_bg",
+      "value": "#7F1D1D"
+    },
+    {
+      "name": "warning",
+      "value": "#FBBF24"
+    },
+    {
+      "name": "warning_bg",
+      "value": "#78350F"
+    },
+    {
+      "name": "chip_bg_selected",
+      "value": "#1A3D37"
+    },
+    {
+      "name": "chip_text_selected",
+      "value": "#5EEAD4"
+    },
+    {
+      "name": "chip_bg_unselected",
+      "value": "#374151"
+    },
+    {
+      "name": "chip_text_unselected",
+      "value": "#9CA3AF"
+    },
+    {
+      "name": "card_bg",
+      "value": "#1F2937"
+    },
+    {
+      "name": "card_bg_selected",
+      "value": "#1A3D37"
+    },
+    {
+      "name": "card_shadow",
+      "value": "#33000000"
+    },
+    {
+      "name": "icon_primary",
+      "value": "#2DD4A8"
+    },
+    {
+      "name": "icon_secondary",
+      "value": "#9CA3AF"
+    },
+    {
+      "name": "divider",
+      "value": "#374151"
     }
   ]
 }

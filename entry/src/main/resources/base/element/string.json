@@ -23,6 +23,478 @@
     {
       "name": "pasteboard_permission_reason",
       "value": "点击剪贴板捕捉时读取剪贴板文本"
+    },
+    {
+      "name": "tab_capture",
+      "value": "捕捉"
+    },
+    {
+      "name": "tab_library",
+      "value": "想法库"
+    },
+    {
+      "name": "tab_settings",
+      "value": "设置"
+    },
+    {
+      "name": "capture_title",
+      "value": "快速记录"
+    },
+    {
+      "name": "library_title",
+      "value": "全部记录"
+    },
+    {
+      "name": "settings_title",
+      "value": "设置与数据管理"
+    },
+    {
+      "name": "save_idea",
+      "value": "保存想法"
+    },
+    {
+      "name": "clear_form",
+      "value": "清空"
+    },
+    {
+      "name": "delete_confirm_title",
+      "value": "确认删除"
+    },
+    {
+      "name": "delete_confirm_message",
+      "value": "此操作不可撤销，确定要删除吗？"
+    },
+    {
+      "name": "confirm",
+      "value": "确定"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "idea_saved",
+      "value": "想法已保存"
+    },
+    {
+      "name": "idea_deleted",
+      "value": "想法已删除"
+    },
+    {
+      "name": "export_success",
+      "value": "导出成功"
+    },
+    {
+      "name": "import_success",
+      "value": "导入成功"
+    },
+    {
+      "name": "operation_failed",
+      "value": "操作失败"
+    },
+    {
+      "name": "no_folder",
+      "value": "无文件夹"
+    },
+    {
+      "name": "all_types",
+      "value": "全部"
+    },
+    {
+      "name": "type_audio",
+      "value": "语音"
+    },
+    {
+      "name": "type_handwriting",
+      "value": "手写"
+    },
+    {
+      "name": "type_document",
+      "value": "文档"
+    },
+    {
+      "name": "status_all",
+      "value": "全部状态"
+    },
+    {
+      "name": "status_favorite",
+      "value": "收藏"
+    },
+    {
+      "name": "status_archived",
+      "value": "归档"
+    },
+    {
+      "name": "status_active",
+      "value": "未归档"
+    },
+    {
+      "name": "sync_local_only",
+      "value": "仅本机"
+    },
+    {
+      "name": "sync_pending",
+      "value": "待同步"
+    },
+    {
+      "name": "sync_synced",
+      "value": "已同步"
+    },
+    {
+      "name": "sync_conflict",
+      "value": "冲突"
+    },
+    {
+      "name": "clear_filters",
+      "value": "清除筛选"
+    },
+    {
+      "name": "select_all_visible",
+      "value": "全选可见"
+    },
+    {
+      "name": "clear_selection",
+      "value": "清除选择"
+    },
+    {
+      "name": "batch_favorite",
+      "value": "批量收藏"
+    },
+    {
+      "name": "batch_archive",
+      "value": "批量归档"
+    },
+    {
+      "name": "batch_delete",
+      "value": "批量删除"
+    },
+    {
+      "name": "open_detail",
+      "value": "打开"
+    },
+    {
+      "name": "favorite",
+      "value": "收藏"
+    },
+    {
+      "name": "unfavorite",
+      "value": "取消收藏"
+    },
+    {
+      "name": "archive",
+      "value": "归档"
+    },
+    {
+      "name": "unarchive",
+      "value": "取消归档"
+    },
+    {
+      "name": "delete_record_only",
+      "value": "仅删记录"
+    },
+    {
+      "name": "more_actions",
+      "value": "更多"
+    },
+    {
+      "name": "read_clipboard",
+      "value": "读取剪贴板"
+    },
+    {
+      "name": "start_record",
+      "value": "开始录音"
+    },
+    {
+      "name": "pause_record",
+      "value": "暂停"
+    },
+    {
+      "name": "resume_record",
+      "value": "继续"
+    },
+    {
+      "name": "stop_record",
+      "value": "完成"
+    },
+    {
+      "name": "cancel_record",
+      "value": "取消"
+    },
+    {
+      "name": "undo_stroke",
+      "value": "撤销"
+    },
+    {
+      "name": "clear_canvas",
+      "value": "清空"
+    },
+    {
+      "name": "save_preview",
+      "value": "保存预览"
+    },
+    {
+      "name": "auto_save_draft",
+      "value": "自动保存草稿"
+    },
+    {
+      "name": "detail_title",
+      "value": "想法详情"
+    },
+    {
+      "name": "source_context",
+      "value": "来源上下文"
+    },
+    {
+      "name": "open_source",
+      "value": "打开来源"
+    },
+    {
+      "name": "asset_section",
+      "value": "附件与上下文"
+    },
+    {
+      "name": "ai_section",
+      "value": "AI 整理"
+    },
+    {
+      "name": "save_ai_output",
+      "value": "保存结果"
+    },
+    {
+      "name": "refresh_ai",
+      "value": "刷新结果"
+    },
+    {
+      "name": "select_attachment",
+      "value": "选择附件"
+    },
+    {
+      "name": "open_attachment",
+      "value": "打开附件"
+    },
+    {
+      "name": "clear_attachment",
+      "value": "清除附件"
+    },
+    {
+      "name": "export_attachment",
+      "value": "导出附件"
+    },
+    {
+      "name": "save_changes",
+      "value": "保存"
+    },
+    {
+      "name": "play_audio",
+      "value": "播放"
+    },
+    {
+      "name": "pause_audio",
+      "value": "暂停"
+    },
+    {
+      "name": "stop_audio",
+      "value": "停止"
+    },
+    {
+      "name": "perm_mic_ready",
+      "value": "麦克风权限已就绪"
+    },
+    {
+      "name": "perm_mic_denied",
+      "value": "未获得麦克风权限"
+    },
+    {
+      "name": "retry_mic",
+      "value": "重试麦克风"
+    },
+    {
+      "name": "floating_ball_toggle",
+      "value": "悬浮球"
+    },
+    {
+      "name": "export_json",
+      "value": "导出 JSON"
+    },
+    {
+      "name": "export_txt",
+      "value": "导出 TXT"
+    },
+    {
+      "name": "export_md",
+      "value": "导出 Markdown"
+    },
+    {
+      "name": "share_text",
+      "value": "分享文本"
+    },
+    {
+      "name": "share_md",
+      "value": "分享 Markdown"
+    },
+    {
+      "name": "screenshot_fallback",
+      "value": "截图兜底"
+    },
+    {
+      "name": "import_file",
+      "value": "导入文件"
+    },
+    {
+      "name": "import_zip",
+      "value": "导入 ZIP"
+    },
+    {
+      "name": "export_zip",
+      "value": "ZIP 备份"
+    },
+    {
+      "name": "share_zip",
+      "value": "分享 ZIP"
+    },
+    {
+      "name": "strategy_conservative",
+      "value": "保守导入"
+    },
+    {
+      "name": "strategy_overwrite",
+      "value": "强制覆盖"
+    },
+    {
+      "name": "encryption_toggle",
+      "value": "加密备份"
+    },
+    {
+      "name": "backup_password",
+      "value": "备份密码"
+    },
+    {
+      "name": "import_password",
+      "value": "导入密码"
+    },
+    {
+      "name": "encryption_hint",
+      "value": "加密后 ZIP 只保留元数据，数据需密码解密"
+    },
+    {
+      "name": "folder_manager",
+      "value": "文件夹管理"
+    },
+    {
+      "name": "tag_manager",
+      "value": "标签管理"
+    },
+    {
+      "name": "new_folder",
+      "value": "新建文件夹"
+    },
+    {
+      "name": "save_folder",
+      "value": "保存文件夹"
+    },
+    {
+      "name": "new_tag",
+      "value": "新建标签"
+    },
+    {
+      "name": "save_tag",
+      "value": "保存标签"
+    },
+    {
+      "name": "no_ideas",
+      "value": "暂无想法，点击捕捉开始记录"
+    },
+    {
+      "name": "search_placeholder",
+      "value": "搜索标题、标签、正文、来源"
+    },
+    {
+      "name": "title_placeholder",
+      "value": "标题，可留空自动生成"
+    },
+    {
+      "name": "tags_placeholder",
+      "value": "标签，用逗号分隔"
+    },
+    {
+      "name": "source_title_placeholder",
+      "value": "来源标题"
+    },
+    {
+      "name": "source_url_placeholder",
+      "value": "来源链接"
+    },
+    {
+      "name": "note_placeholder",
+      "value": "备注：补充上下文或后续行动"
+    },
+    {
+      "name": "document_placeholder",
+      "value": "写下你的想法、清单、问题或行动计划"
+    },
+    {
+      "name": "plain_text_placeholder",
+      "value": "正文"
+    },
+    {
+      "name": "folder_name_placeholder",
+      "value": "文件夹名称"
+    },
+    {
+      "name": "tag_name_placeholder",
+      "value": "标签名称"
+    },
+    {
+      "name": "root_level",
+      "value": "根级"
+    },
+    {
+      "name": "edit",
+      "value": "编辑"
+    },
+    {
+      "name": "delete",
+      "value": "删除"
+    },
+    {
+      "name": "move",
+      "value": "移动"
+    },
+    {
+      "name": "add_tags",
+      "value": "添加标签"
+    },
+    {
+      "name": "remove_tags",
+      "value": "移除标签"
+    },
+    {
+      "name": "clear_belong",
+      "value": "清空归属"
+    },
+    {
+      "name": "mark_local",
+      "value": "标记本机"
+    },
+    {
+      "name": "mark_synced",
+      "value": "标记已同步"
+    },
+    {
+      "name": "export_preview",
+      "value": "导出预览图"
+    },
+    {
+      "name": "export_handwriting_json",
+      "value": "导出手写JSON"
+    },
+    {
+      "name": "selected_count",
+      "value": "已选 %d 条"
+    },
+    {
+      "name": "idea_count",
+      "value": "%d 条"
     }
   ]
 }

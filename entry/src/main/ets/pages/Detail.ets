@@ -1,4 +1,5 @@
 import Want from '@ohos.app.ability.Want';
+import { LengthMetrics } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import fileUri from '@ohos.file.fileuri';
 import { Idea, IdeaAiOutput, IdeaAsset, IdeaFolder, IdeaTag, ideaTypeLabel } from '../model/IdeaModels';
@@ -35,6 +36,9 @@ struct Detail {
   @State private aiDraftType: string = 'summary';
   @State private aiDraftContent: string = '';
   @State private aiStatusMessage: string = '';
+  @State private sourceExpanded: boolean = true;
+  @State private assetExpanded: boolean = true;
+  @State private aiExpanded: boolean = false;
 
   async aboutToAppear(): Promise<void> {
     const params = this.getUIContext().getRouter().getParams() as DetailParams;
@@ -51,251 +55,576 @@ struct Detail {
   }
 
   build() {
-    Column({ space: 16 }) {
+    Navigation() {
+      Scroll() {
+        Column({ space: 16 }) {
+          if (this.idea) {
+            this.SourceContextSection();
+            this.AssetSection();
+            this.EditSection();
+            this.AiOutputSection();
+            this.BottomActions();
+          } else {
+            Column() {
+              Text(this.status || '记录不存在')
+                .fontSize(16)
+                .fontColor($r('app.color.text_secondary'))
+            }
+            .width('100%')
+            .height('100%')
+            .justifyContent(FlexAlign.Center)
+          }
+        }
+        .padding(16)
+      }
+      .width('100%')
+      .height('100%')
+      .scrollBar(BarState.Auto)
+    }
+    .title($r('app.string.detail_title'))
+    .titleMode(NavigationTitleMode.Mini)
+    .mode(NavigationMode.Stack)
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.surface_page'))
+  }
+
+  @Builder
+  private SourceContextSection() {
+    Column({ space: 8 }) {
       Row() {
-        Column({ space: 4 }) {
-          Text('想法详情')
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-          Text(this.idea ? ideaTypeLabel(this.idea.type) : '加载中')
+        Text($r('app.string.source_context'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Text(this.sourceExpanded ? '\u25B2' : '\u25BC')
+          .fontSize(12)
+          .fontColor($r('app.color.icon_secondary'))
+          .onClick(() => this.sourceExpanded = !this.sourceExpanded)
+      }
+      .width('100%')
+
+      if (this.sourceExpanded) {
+        Text(this.contextSummary())
+          .fontSize(13)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+
+        Row({ space: 8 }) {
+          Button($r('app.string.open_source'))
+            .fontSize(13)
+            .height(32)
+            .padding({ left: 12, right: 12 })
+            .backgroundColor($r('app.color.brand_primary'))
+            .fontColor(Color.White)
+            .borderRadius(16)
+            .enabled(this.normalizeSourceUrl(this.sourceUrl || this.idea?.context.url || '').length > 0)
+            .onClick(() => { void this.openSourceUrl(); })
+          if ((this.sourceUrl || this.idea?.context.url || '').length > 0) {
+            Text(this.sourceUrl || this.idea?.context.url)
+              .fontSize(12)
+              .fontColor($r('app.color.brand_primary'))
+              .layoutWeight(1)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+        }
+
+        if (this.idea && this.idea.context.manualNote.length > 0) {
+          Text(this.idea.context.manualNote)
             .fontSize(12)
-            .fontColor('#667085')
+            .fontColor($r('app.color.text_tertiary'))
+            .maxLines(3)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+
+        Row() {
+          Text(this.idea ? ideaTypeLabel(this.idea.type) : '')
+            .fontSize(12)
+            .fontColor($r('app.color.chip_text_selected'))
+            .backgroundColor($r('app.color.chip_bg_selected'))
+            .borderRadius(12)
+            .padding({ left: 10, right: 10, top: 3, bottom: 3 })
           if (this.idea) {
             Row({ space: 6 }) {
               Text(this.syncStatusLabel(this.idea.syncStatus))
                 .fontSize(11)
-                .fontColor(this.idea.syncStatus === 'conflict' ? '#B42318' : '#0B4F47')
-                .backgroundColor(this.idea.syncStatus === 'conflict' ? '#FEE4E2' : '#E0F2EE')
+                .fontColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger') : $r('app.color.chip_text_selected'))
+                .backgroundColor(this.idea.syncStatus === 'conflict' ? $r('app.color.danger_bg') : $r('app.color.chip_bg_selected'))
                 .borderRadius(10)
                 .padding({ left: 8, right: 8, top: 2, bottom: 2 })
               if (this.idea.syncStatus !== 'local_only') {
-                Button('标记本机')
-                  .buttonStyle(ButtonStyleMode.NORMAL)
-                  .onClick(async () => {
-                    await this.updateSyncStatus('local_only');
-                  })
+                Text($r('app.string.mark_local'))
+                  .fontSize(11)
+                  .fontColor($r('app.color.brand_primary'))
+                  .onClick(() => { void this.updateSyncStatus('local_only'); })
               }
               if (this.idea.syncStatus !== 'synced') {
-                Button('标记已同步')
-                  .buttonStyle(ButtonStyleMode.NORMAL)
-                  .onClick(async () => {
-                    await this.updateSyncStatus('synced');
-                  })
+                Text($r('app.string.mark_synced'))
+                  .fontSize(11)
+                  .fontColor($r('app.color.brand_primary'))
+                  .onClick(() => { void this.updateSyncStatus('synced'); })
               }
             }
           }
         }
-        Blank()
-        Button('返回')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(() => this.backToList())
+      }
+    }
+    .padding(16)
+    .width('100%')
+    .backgroundColor($r('app.color.surface_primary'))
+    .borderRadius(12)
+    .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
+  }
+
+  @Builder
+  private AssetSection() {
+    Column({ space: 8 }) {
+      Row() {
+        Text($r('app.string.asset_section'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Text(this.assetExpanded ? '\u25B2' : '\u25BC')
+          .fontSize(12)
+          .fontColor($r('app.color.icon_secondary'))
+          .onClick(() => this.assetExpanded = !this.assetExpanded)
       }
       .width('100%')
 
-      if (this.idea) {
-        Column({ space: 4 }) {
-          Text('来源上下文')
-            .fontSize(14)
-            .fontWeight(FontWeight.Bold)
-          Text(this.contextSummary())
-            .fontSize(12)
-            .fontColor('#667085')
-          Row({ space: 8 }) {
-            Button('打开来源')
-              .buttonStyle(ButtonStyleMode.NORMAL)
-              .enabled(this.normalizeSourceUrl(this.sourceUrl || this.idea.context.url).length > 0)
-              .onClick(async () => {
-                await this.openSourceUrl();
-              })
-            if ((this.sourceUrl || this.idea.context.url).length > 0) {
-              Text(this.sourceUrl || this.idea.context.url)
-                .fontSize(12)
-                .fontColor('#136F63')
-                .layoutWeight(1)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-            }
-          }
-          if (this.idea.context.manualNote.length > 0) {
-            Text(this.idea.context.manualNote)
-              .fontSize(12)
-              .fontColor('#667085')
-              .maxLines(2)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-        }
-        .padding(12)
-        .width('100%')
-        .backgroundColor('#FBFCFD')
-        .border({ width: 1, color: '#D8DDE6' })
-        .borderRadius(8)
-
+      if (this.assetExpanded) {
         if (this.getAsset()?.previewPath && this.getAsset()?.type === 'handwriting') {
           Image(this.getAsset()!.previewPath)
             .width('100%')
             .height(220)
             .objectFit(ImageFit.Contain)
+            .borderRadius(8)
         }
+
         if (this.getAsset()?.type === 'handwriting') {
-          Column({ space: 6 }) {
-            Text(`手写笔画：${this.getAsset()?.strokes?.length ?? 0}`)
-              .fontSize(12)
-              .fontColor('#667085')
-            if (this.getAsset()?.previewPath) {
-              Row({ space: 8 }) {
-                Text(this.getAsset()!.previewPath)
-                  .fontSize(12)
-                  .fontColor('#667085')
-                  .layoutWeight(1)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Button('打开预览')
-                  .buttonStyle(ButtonStyleMode.NORMAL)
-                  .onClick(async () => {
-                    await this.openPreviewAttachment();
-                  })
-              }
-            }
-          }
+          Text(`\u270D\uFE0F 手写笔画：${this.getAsset()?.strokes?.length ?? 0}`)
+            .fontSize(13)
+            .fontColor($r('app.color.text_secondary'))
         }
+
         if (this.isPlayableAudio()) {
-          Row({ space: 8 }) {
-            Button('播放')
-              .buttonStyle(ButtonStyleMode.NORMAL)
-              .onClick(async () => {
-                await this.playAudioAsset();
-              })
-            Button('暂停')
-              .buttonStyle(ButtonStyleMode.NORMAL)
-              .enabled(this.playbackState === 'playing')
-              .onClick(async () => {
-                await this.pauseAudioAsset();
-              })
-            Button('停止')
-              .buttonStyle(ButtonStyleMode.NORMAL)
-              .enabled(this.playbackState !== 'idle')
-              .onClick(async () => {
-                await this.stopAudioAsset();
-              })
+          Column({ space: 8 }) {
+            Row({ space: 8 }) {
+              Button($r('app.string.play_audio'))
+                .fontSize(13)
+                .height(32)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.brand_primary'))
+                .fontColor(Color.White)
+                .borderRadius(16)
+                .onClick(() => { void this.playAudioAsset(); })
+              Button($r('app.string.pause_audio'))
+                .fontSize(13)
+                .height(32)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.text_primary'))
+                .borderRadius(16)
+                .enabled(this.playbackState === 'playing')
+                .onClick(() => { void this.pauseAudioAsset(); })
+              Button($r('app.string.stop_audio'))
+                .fontSize(13)
+                .height(32)
+                .padding({ left: 12, right: 12 })
+                .backgroundColor($r('app.color.surface_secondary'))
+                .fontColor($r('app.color.text_primary'))
+                .borderRadius(16)
+                .enabled(this.playbackState !== 'idle')
+                .onClick(() => { void this.stopAudioAsset(); })
+            }
+            Text(`\u{1F3B5} 播放状态：${this.playbackState}`)
+              .fontSize(12)
+              .fontColor($r('app.color.text_secondary'))
           }
-          Text(`播放状态：${this.playbackState}`)
-            .fontColor('#667085')
+        }
+
+        Row({ space: 8 }) {
+          Button($r('app.string.select_attachment'))
             .fontSize(12)
+            .height(28)
+            .padding({ left: 10, right: 10 })
+            .backgroundColor($r('app.color.surface_secondary'))
+            .fontColor($r('app.color.brand_primary'))
+            .borderRadius(14)
+            .onClick(async () => {
+              try {
+                const asset = await ideaRepository.replaceIdeaAsset(this.ideaId);
+                if (asset) {
+                  this.attachmentStatus = `已选择：${asset.localUri}`;
+                  await this.reload();
+                } else {
+                  this.attachmentStatus = '已取消选择';
+                }
+              } catch (err) {
+                this.attachmentStatus = `选择失败：${String(err)}`;
+              }
+            })
+          if (this.assetLocalUri.length > 0) {
+            Button($r('app.string.open_attachment'))
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 10, right: 10 })
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(14)
+              .onClick(() => { void this.openAttachment(this.assetLocalUri); })
+          }
+          Button($r('app.string.clear_attachment'))
+            .fontSize(12)
+            .height(28)
+            .padding({ left: 10, right: 10 })
+            .backgroundColor($r('app.color.danger_bg'))
+            .fontColor($r('app.color.danger'))
+            .borderRadius(14)
+            .onClick(async () => {
+              try {
+                await ideaRepository.clearIdeaAsset(this.ideaId);
+                this.attachmentStatus = '已清除附件';
+                await this.reload();
+              } catch (err) {
+                this.attachmentStatus = `清除失败：${String(err)}`;
+              }
+            })
         }
-        this.AssetSection()
-        this.AiOutputSection()
-        TextInput({ text: this.title, placeholder: '标题' })
-          .onChange((value: string) => this.title = value)
-        TextInput({ text: this.tags, placeholder: '标签，逗号分隔' })
-          .onChange((value: string) => this.tags = value)
-        if (this.tagsCatalog.length > 0) {
-          Row({ space: 6 }) {
-            ForEach(this.tagsCatalog, (tag: IdeaTag) => {
-              Button(tag.name)
-                .buttonStyle(ButtonStyleMode.NORMAL)
-                .backgroundColor(this.hasTag(tag.name) ? '#E0F2EE' : '#FFFFFF')
-                .fontColor(this.hasTag(tag.name) ? '#0B4F47' : '#697386')
-                .onClick(() => this.toggleTag(tag.name))
-            }, (tag: IdeaTag) => tag.id)
+
+        Row({ space: 8 }) {
+          if (this.assetLocalUri.length > 0) {
+            Button($r('app.string.export_attachment'))
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 10, right: 10 })
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(14)
+              .onClick(() => { void this.exportCurrentAttachment(); })
+          }
+          if (this.assetPreviewPath.length > 0) {
+            Button($r('app.string.export_preview'))
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 10, right: 10 })
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(14)
+              .onClick(() => { void this.exportPreviewImage(); })
+          }
+          if ((this.getAsset()?.strokes?.length ?? 0) > 0) {
+            Button($r('app.string.export_handwriting_json'))
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 10, right: 10 })
+              .backgroundColor($r('app.color.surface_secondary'))
+              .fontColor($r('app.color.brand_primary'))
+              .borderRadius(14)
+              .onClick(() => { void this.exportHandwritingJson(); })
           }
         }
-        TextInput({ text: this.sourceTitle, placeholder: '来源标题' })
-          .onChange((value: string) => this.sourceTitle = value)
-        TextInput({ text: this.sourceUrl, placeholder: '来源链接' })
-          .onChange((value: string) => this.sourceUrl = value)
-          Text('文件夹')
-          .fontSize(12)
-          .fontColor('#667085')
-        this.DetailFolderPicker()
-        TextArea({ text: this.plainText, placeholder: '正文' })
-          .height(160)
-          .onChange((value: string) => this.plainText = value)
-        TextArea({ text: this.note, placeholder: '备注' })
-          .height(120)
-          .onChange((value: string) => this.note = value)
 
-        Row({ space: 10 }) {
-          Button(this.idea.isFavorite ? '取消收藏' : '收藏')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .onClick(async () => {
-              const current = this.idea;
-              if (!current) {
-                return;
-              }
-              await ideaRepository.update(this.ideaId, { isFavorite: !current.isFavorite });
-              await this.reload();
-            })
-          Button(this.idea.isArchived ? '取消归档' : '归档')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .onClick(async () => {
-              const current = this.idea;
-              if (!current) {
-                return;
-              }
-              await ideaRepository.update(this.ideaId, { isArchived: !current.isArchived });
-              await this.reload();
-            })
-          Button('保存')
-            .backgroundColor('#136F63')
-            .fontColor(Color.White)
-            .onClick(async () => {
-              await ideaRepository.update(this.ideaId, {
-                title: this.title,
-                plainText: this.plainText,
-                note: this.note,
-                tags: this.parseTags(),
-                folderId: this.folderId || undefined,
-                context: {
-                  title: this.sourceTitle,
-                  url: this.sourceUrl,
-                  manualNote: this.note,
-                  capturedAt: this.idea ? this.idea.context.capturedAt : new Date().toISOString()
-                },
-                asset: this.buildAssetPatch()
-              });
-              this.status = '已保存';
-              await this.reload();
-            })
-          Button('删除')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .fontColor('#B42318')
-            .onClick(async () => {
-              await ideaRepository.delete(this.ideaId);
-              this.backToList();
-            })
-          Button('仅删记录')
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .fontColor('#B54708')
-            .onClick(async () => {
-              await ideaRepository.delete(this.ideaId, false);
-              this.backToList();
-            })
+        if (this.attachmentStatus.length > 0) {
+          Text(this.attachmentStatus)
+            .fontSize(12)
+            .fontColor($r('app.color.text_tertiary'))
         }
-
-        Text(this.status)
-          .fontColor('#667085')
-          .fontSize(12)
-      } else {
-        Text(this.status || '记录不存在')
       }
     }
-    .padding(20)
+    .padding(16)
     .width('100%')
-    .height('100%')
-    .backgroundColor('#F5F6F8')
+    .backgroundColor($r('app.color.surface_primary'))
+    .borderRadius(12)
+    .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
+  }
+
+  @Builder
+  private EditSection() {
+    Column({ space: 12 }) {
+      TextInput({ text: this.title, placeholder: $r('app.string.title_placeholder') })
+        .onChange((value: string) => this.title = value)
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+
+      TextInput({ text: this.tags, placeholder: $r('app.string.tags_placeholder') })
+        .onChange((value: string) => this.tags = value)
+
+      if (this.tagsCatalog.length > 0) {
+        Flex({ wrap: FlexWrap.Wrap, space: { main: LengthMetrics.vp(6), cross: LengthMetrics.vp(4) } }) {
+          ForEach(this.tagsCatalog, (tag: IdeaTag) => {
+            Text(tag.name)
+              .fontSize(13)
+              .fontColor(this.hasTag(tag.name) ? $r('app.color.chip_text_selected') : $r('app.color.chip_text_unselected'))
+              .backgroundColor(this.hasTag(tag.name) ? $r('app.color.chip_bg_selected') : $r('app.color.chip_bg_unselected'))
+              .borderRadius(14)
+              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+              .onClick(() => this.toggleTag(tag.name))
+          }, (tag: IdeaTag) => tag.id)
+        }
+      }
+
+      if (this.folders.length > 0) {
+        Row({ space: 6 }) {
+          Text($r('app.string.no_folder'))
+            .fontSize(13)
+            .fontColor(this.folderId.length === 0 ? $r('app.color.chip_text_selected') : $r('app.color.chip_text_unselected'))
+            .backgroundColor(this.folderId.length === 0 ? $r('app.color.chip_bg_selected') : $r('app.color.chip_bg_unselected'))
+            .borderRadius(14)
+            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+            .onClick(() => this.folderId = '')
+          Scroll() {
+            Row({ space: 6 }) {
+              ForEach(this.displayFolders(), (folder: IdeaFolder) => {
+                Text(this.folderDisplayName(folder))
+                  .fontSize(13)
+                  .fontColor(this.folderId === folder.id ? $r('app.color.chip_text_selected') : $r('app.color.chip_text_unselected'))
+                  .backgroundColor(this.folderId === folder.id ? $r('app.color.chip_bg_selected') : $r('app.color.chip_bg_unselected'))
+                  .borderRadius(14)
+                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                  .onClick(() => this.folderId = folder.id)
+              }, (folder: IdeaFolder) => folder.id)
+            }
+          }
+          .scrollable(ScrollDirection.Horizontal)
+          .scrollBar(BarState.Off)
+          .layoutWeight(1)
+        }
+      }
+
+      TextInput({ text: this.sourceTitle, placeholder: $r('app.string.source_title_placeholder') })
+        .onChange((value: string) => this.sourceTitle = value)
+
+      TextInput({ text: this.sourceUrl, placeholder: $r('app.string.source_url_placeholder') })
+        .onChange((value: string) => this.sourceUrl = value)
+
+      TextArea({ text: this.plainText, placeholder: $r('app.string.plain_text_placeholder') })
+        .height(160)
+        .onChange((value: string) => this.plainText = value)
+
+      TextArea({ text: this.note, placeholder: $r('app.string.note_placeholder') })
+        .height(100)
+        .onChange((value: string) => this.note = value)
+    }
+    .padding(16)
+    .width('100%')
+    .backgroundColor($r('app.color.surface_primary'))
+    .borderRadius(12)
+    .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
+  }
+
+  @Builder
+  private AiOutputSection() {
+    Column({ space: 8 }) {
+      Row() {
+        Text($r('app.string.ai_section'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Text(this.aiExpanded ? '\u25B2' : '\u25BC')
+          .fontSize(12)
+          .fontColor($r('app.color.icon_secondary'))
+          .onClick(() => this.aiExpanded = !this.aiExpanded)
+      }
+      .width('100%')
+
+      if (this.aiExpanded) {
+        Text('结果保存在独立记录中，不覆盖原始想法。')
+          .fontSize(12)
+          .fontColor($r('app.color.text_tertiary'))
+          .width('100%')
+
+        Scroll() {
+          Row({ space: 6 }) {
+            this.AiTypeChip('summary', '摘要')
+            this.AiTypeChip('action_items', '行动项')
+            this.AiTypeChip('questions', '问题')
+            this.AiTypeChip('transcription', '转写')
+            this.AiTypeChip('ocr', 'OCR')
+            this.AiTypeChip('tags', '自动标签')
+          }
+        }
+        .scrollable(ScrollDirection.Horizontal)
+        .scrollBar(BarState.Off)
+        .width('100%')
+
+        TextArea({ text: this.aiDraftContent, placeholder: `录入${this.aiOutputTypeLabel(this.aiDraftType)}结果` })
+          .height(80)
+          .onChange((value: string) => this.aiDraftContent = value)
+
+        Row({ space: 8 }) {
+          Button(`${$r('app.string.save_ai_output')}`)
+            .fontSize(13)
+            .height(36)
+            .backgroundColor($r('app.color.brand_primary'))
+            .fontColor(Color.White)
+            .borderRadius(18)
+            .enabled(this.aiDraftContent.trim().length > 0)
+            .onClick(() => { void this.saveAiDraft(); })
+          Button($r('app.string.refresh_ai'))
+            .fontSize(13)
+            .height(36)
+            .backgroundColor($r('app.color.surface_secondary'))
+            .fontColor($r('app.color.brand_primary'))
+            .borderRadius(18)
+            .onClick(() => { void this.reloadAiOutputs(); })
+        }
+
+        if (this.aiOutputs.length > 0) {
+          Column({ space: 8 }) {
+            ForEach(this.aiOutputs, (output: IdeaAiOutput) => {
+              Row({ space: 8 }) {
+                Column({ space: 4 }) {
+                  Text(this.aiOutputTypeLabel(output.outputType))
+                    .fontSize(12)
+                    .fontColor($r('app.color.brand_primary'))
+                    .fontWeight(FontWeight.Bold)
+                  Text(output.content)
+                    .fontSize(13)
+                    .fontColor($r('app.color.text_primary'))
+                    .maxLines(3)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                }
+                .layoutWeight(1)
+                .alignItems(HorizontalAlign.Start)
+                Text('\u2716')
+                  .fontSize(14)
+                  .fontColor($r('app.color.danger'))
+                  .padding(8)
+                  .onClick(() => { void this.deleteAiOutput(output.id); })
+              }
+              .width('100%')
+              .padding(12)
+              .backgroundColor($r('app.color.surface_secondary'))
+              .borderRadius(8)
+            }, (output: IdeaAiOutput) => output.id)
+          }
+        }
+
+        if (this.aiStatusMessage.length > 0) {
+          Text(this.aiStatusMessage)
+            .fontSize(12)
+            .fontColor($r('app.color.text_tertiary'))
+        }
+      }
+    }
+    .padding(16)
+    .width('100%')
+    .backgroundColor($r('app.color.surface_primary'))
+    .borderRadius(12)
+    .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
+  }
+
+  @Builder
+  private AiTypeChip(type: string, label: string) {
+    Text(`${label} ${this.aiOutputCount(type)}`)
+      .fontSize(13)
+      .fontColor(this.aiDraftType === type ? $r('app.color.chip_text_selected') : $r('app.color.chip_text_unselected'))
+      .backgroundColor(this.aiDraftType === type ? $r('app.color.chip_bg_selected') : $r('app.color.chip_bg_unselected'))
+      .borderRadius(14)
+      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+      .onClick(() => this.aiDraftType = type)
+  }
+
+  @Builder
+  private BottomActions() {
+    Row({ space: 10 }) {
+      Button($r('app.string.save_changes'))
+        .fontSize(16)
+        .height(44)
+        .backgroundColor($r('app.color.brand_primary'))
+        .fontColor(Color.White)
+        .borderRadius(22)
+        .layoutWeight(1)
+        .onClick(async () => {
+          await ideaRepository.update(this.ideaId, {
+            title: this.title,
+            plainText: this.plainText,
+            note: this.note,
+            tags: this.parseTags(),
+            folderId: this.folderId || undefined,
+            context: {
+              title: this.sourceTitle,
+              url: this.sourceUrl,
+              manualNote: this.note,
+              capturedAt: this.idea ? this.idea.context.capturedAt : new Date().toISOString()
+            },
+            asset: this.buildAssetPatch()
+          });
+          this.status = '已保存';
+          this.showToast('已保存');
+          await this.reload();
+        })
+
+      if (this.idea) {
+        Button(this.idea.isFavorite ? '\u2665' : '\u2661')
+          .fontSize(20)
+          .width(44)
+          .height(44)
+          .backgroundColor(this.idea.isFavorite ? $r('app.color.danger_bg') : $r('app.color.surface_secondary'))
+          .fontColor(this.idea.isFavorite ? $r('app.color.danger') : $r('app.color.icon_secondary'))
+          .borderRadius(22)
+          .onClick(async () => {
+            await ideaRepository.update(this.ideaId, { isFavorite: !this.idea?.isFavorite });
+            await this.reload();
+          })
+
+        Button(this.idea.isArchived ? '\u{1F4C2}' : '\u{1F4C1}')
+          .fontSize(18)
+          .width(44)
+          .height(44)
+          .backgroundColor($r('app.color.surface_secondary'))
+          .fontColor($r('app.color.icon_secondary'))
+          .borderRadius(22)
+          .onClick(async () => {
+            await ideaRepository.update(this.ideaId, { isArchived: !this.idea?.isArchived });
+            await this.reload();
+          })
+
+        Button('\u{1F5D1}')
+          .fontSize(18)
+          .width(44)
+          .height(44)
+          .backgroundColor($r('app.color.danger_bg'))
+          .fontColor($r('app.color.danger'))
+          .borderRadius(22)
+          .onClick(() => {
+            this.confirmDelete();
+          })
+      }
+    }
+    .width('100%')
+  }
+
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message, duration: 2000 });
+  }
+
+  private confirmDelete(): void {
+    this.getUIContext().showAlertDialog({
+      title: $r('app.string.delete_confirm_title'),
+      message: $r('app.string.delete_confirm_message'),
+      primaryButton: {
+        value: $r('app.string.confirm'),
+        action: async () => {
+          await ideaRepository.delete(this.ideaId);
+          this.backToList();
+        }
+      },
+      secondaryButton: {
+        value: $r('app.string.cancel'),
+        action: () => {}
+      }
+    });
   }
 
   private async reload(): Promise<void> {
-    if (!this.ideaId) {
-      this.status = '缺少想法 ID';
-      return;
-    }
+    if (!this.ideaId) { this.status = '缺少想法 ID'; return; }
     const loaded = await ideaRepository.getById(this.ideaId);
-    if (!loaded) {
-      this.status = '记录不存在';
-      this.idea = undefined;
-      return;
-    }
+    if (!loaded) { this.status = '记录不存在'; this.idea = undefined; return; }
     this.idea = loaded;
     this.title = loaded.title;
     this.tags = loaded.tags.join(', ');
@@ -329,9 +658,7 @@ struct Detail {
 
   private async openPreviewAttachment(): Promise<void> {
     const previewPath = this.getAsset()?.previewPath ?? '';
-    if (previewPath.length > 0) {
-      await this.openAttachment(previewPath);
-    }
+    if (previewPath.length > 0) await this.openAttachment(previewPath);
   }
 
   private async playAudioAsset(): Promise<void> {
@@ -349,7 +676,6 @@ struct Detail {
     try {
       await audioPlaybackService.pause();
       this.syncPlaybackState();
-      this.status = '音频已暂停';
     } catch (err) {
       this.syncPlaybackState();
       this.status = this.formatPlaybackError('暂停失败', err);
@@ -360,7 +686,6 @@ struct Detail {
     try {
       await audioPlaybackService.stop();
       this.syncPlaybackState();
-      this.status = '音频已停止';
     } catch (err) {
       this.syncPlaybackState();
       this.status = this.formatPlaybackError('停止失败', err);
@@ -373,8 +698,7 @@ struct Detail {
 
   private formatPlaybackError(prefix: string, err: Object): string {
     const serviceError = audioPlaybackService.getLastError();
-    const detail = serviceError.length > 0 ? serviceError : String(err);
-    return `${prefix}: ${detail}`;
+    return `${prefix}: ${serviceError.length > 0 ? serviceError : String(err)}`;
   }
 
   private parseTags(): string[] {
@@ -387,118 +711,18 @@ struct Detail {
 
   private toggleTag(tag: string): void {
     const current = new Set(this.parseTags());
-    if (current.has(tag)) {
-      current.delete(tag);
-    } else {
-      current.add(tag);
-    }
+    if (current.has(tag)) { current.delete(tag); } else { current.add(tag); }
     this.tags = Array.from(current.values()).join(', ');
   }
 
-  @Builder
-  private AiOutputSection() {
-    Column({ space: 8 }) {
-      Text('AI 整理预留')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-      Text('结果保存在独立记录中，不覆盖原始想法。')
-        .fontSize(12)
-        .fontColor('#667085')
-      Row({ space: 8 }) {
-        this.AiTypeButton('summary')
-        this.AiTypeButton('action_items')
-        this.AiTypeButton('questions')
-        this.AiTypeButton('transcription')
-        this.AiTypeButton('ocr')
-        this.AiTypeButton('tags')
-      }
-      TextArea({ text: this.aiDraftContent, placeholder: `录入${this.aiOutputTypeLabel(this.aiDraftType)}结果，原始想法不会被覆盖` })
-        .height(90)
-        .onChange((value: string) => this.aiDraftContent = value)
-      Row({ space: 8 }) {
-        Button(`保存${this.aiOutputTypeLabel(this.aiDraftType)}`)
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled(this.aiDraftContent.trim().length > 0)
-          .onClick(async () => {
-            await this.saveAiDraft();
-          })
-        Button('刷新结果')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(async () => {
-            await this.reloadAiOutputs();
-          })
-      }
-      if (this.aiOutputs.length > 0) {
-        ForEach(this.aiOutputs, (output: IdeaAiOutput) => {
-          Column({ space: 6 }) {
-            Row({ space: 8 }) {
-              Text(this.aiOutputTypeLabel(output.outputType))
-                .fontSize(12)
-                .fontColor('#136F63')
-                .fontWeight(FontWeight.Bold)
-              Text(`来源：${output.sourceIdeaIds.join(', ')}`)
-                .fontSize(11)
-                .fontColor('#667085')
-                .layoutWeight(1)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Button('删除')
-                .buttonStyle(ButtonStyleMode.NORMAL)
-                .fontColor('#B42318')
-                .onClick(async () => {
-                  await this.deleteAiOutput(output.id);
-                })
-            }
-            Text(output.content)
-              .fontSize(13)
-              .fontColor('#1F2937')
-          }
-          .padding(10)
-          .width('100%')
-          .backgroundColor('#FFFFFF')
-          .border({ width: 1, color: '#D8DDE6' })
-          .borderRadius(8)
-        }, (output: IdeaAiOutput) => output.id)
-      }
-      if (this.aiStatusMessage.length > 0) {
-        Text(this.aiStatusMessage)
-          .fontSize(12)
-          .fontColor('#667085')
-      }
-    }
-    .padding(12)
-    .width('100%')
-    .backgroundColor('#FBFCFD')
-    .border({ width: 1, color: '#D8DDE6' })
-    .borderRadius(8)
-  }
-
   private async reloadAiOutputs(): Promise<void> {
-    if (!this.ideaId) {
-      this.aiOutputs = [];
-      return;
-    }
+    if (!this.ideaId) { this.aiOutputs = []; return; }
     this.aiOutputs = await ideaRepository.listAiOutputs(this.ideaId);
-  }
-
-  @Builder
-  private AiTypeButton(type: string) {
-    Button(`${this.aiOutputTypeLabel(type)} ${this.aiOutputCount(type)}`)
-      .buttonStyle(ButtonStyleMode.NORMAL)
-      .backgroundColor(this.aiDraftType === type ? '#E0F2EE' : '#FFFFFF')
-      .fontColor(this.aiDraftType === type ? '#0B4F47' : '#697386')
-      .onClick(() => this.aiDraftType = type)
-  }
-
-  private aiOutputCount(type: string): number {
-    return this.aiOutputs.filter((output: IdeaAiOutput) => output.outputType === type).length;
   }
 
   private async saveAiDraft(): Promise<void> {
     const content = this.aiDraftContent.trim();
-    if (content.length === 0) {
-      return;
-    }
+    if (content.length === 0) return;
     try {
       await ideaRepository.saveAiOutput(this.ideaId, this.aiDraftType, content, [this.ideaId]);
       this.aiDraftContent = '';
@@ -522,142 +746,21 @@ struct Detail {
   }
 
   private aiOutputTypeLabel(type: string): string {
-    if (type === 'summary') {
-      return '摘要';
-    }
-    if (type === 'transcription') {
-      return '转写';
-    }
-    if (type === 'ocr') {
-      return 'OCR';
-    }
-    if (type === 'action_items') {
-      return '行动项';
-    }
-    if (type === 'questions') {
-      return '问题';
-    }
-    if (type === 'tags') {
-      return '自动标签';
-    }
+    if (type === 'summary') return '摘要';
+    if (type === 'transcription') return '转写';
+    if (type === 'ocr') return 'OCR';
+    if (type === 'action_items') return '行动项';
+    if (type === 'questions') return '问题';
+    if (type === 'tags') return '自动标签';
     return type;
   }
 
-  @Builder
-  private DetailFolderPicker() {
-    Column({ space: 8 }) {
-      Row({ space: 8 }) {
-        Button('无文件夹')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .backgroundColor(this.folderId.length === 0 ? '#E0F2EE' : '#FFFFFF')
-          .fontColor(this.folderId.length === 0 ? '#0B4F47' : '#697386')
-          .onClick(() => this.folderId = '')
-        ForEach(this.displayFolders(), (folder: IdeaFolder) => {
-          Button(this.folderDisplayName(folder))
-            .buttonStyle(ButtonStyleMode.NORMAL)
-            .backgroundColor(this.folderId === folder.id ? '#E0F2EE' : '#FFFFFF')
-            .fontColor(this.folderId === folder.id ? '#0B4F47' : '#697386')
-            .onClick(() => this.folderId = folder.id)
-        }, (folder: IdeaFolder) => folder.id)
-      }
-      Button('刷新文件夹')
-        .buttonStyle(ButtonStyleMode.NORMAL)
-        .onClick(async () => {
-          await this.refreshFolders();
-        })
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-  }
-
-  @Builder
-  private AssetSection() {
-    Column({ space: 8 }) {
-      Text('附件与上下文')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-      Text(`类型：${this.assetType || '无'}`)
-        .fontSize(12)
-        .fontColor('#667085')
-      TextInput({ text: this.assetLocalUri, placeholder: '附件本地路径' })
-        .onChange((value: string) => this.assetLocalUri = value)
-      TextInput({ text: this.assetMimeType, placeholder: 'MimeType' })
-        .onChange((value: string) => this.assetMimeType = value)
-      TextInput({ text: `${this.assetDurationMs}`, placeholder: '时长（毫秒）' })
-        .onChange((value: string) => this.assetDurationMs = Number(value || '0'))
-      TextInput({ text: this.assetPreviewPath, placeholder: '预览图路径' })
-        .onChange((value: string) => this.assetPreviewPath = value)
-      Row({ space: 8 }) {
-        Button('选择附件')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(async () => {
-            try {
-              const asset = await ideaRepository.replaceIdeaAsset(this.ideaId);
-              if (asset) {
-                this.attachmentStatus = `已选择：${asset.localUri}`;
-                await this.reload();
-              } else {
-                this.attachmentStatus = '已取消选择';
-              }
-            } catch (err) {
-              this.attachmentStatus = `选择失败：${String(err)}`;
-            }
-          })
-        Button('打开附件')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled(this.assetLocalUri.length > 0)
-          .onClick(async () => {
-            await this.openAttachment(this.assetLocalUri);
-          })
-        Button('清除附件')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .onClick(async () => {
-            try {
-              await ideaRepository.clearIdeaAsset(this.ideaId);
-              this.attachmentStatus = '已清除附件';
-              await this.reload();
-            } catch (err) {
-              this.attachmentStatus = `清除失败：${String(err)}`;
-            }
-          })
-      }
-      Row({ space: 8 }) {
-        Button('导出附件')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled(this.assetLocalUri.length > 0)
-          .onClick(async () => {
-            await this.exportCurrentAttachment();
-          })
-        Button('导出预览图')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled(this.assetPreviewPath.length > 0)
-          .onClick(async () => {
-            await this.exportPreviewImage();
-          })
-        Button('导出手写JSON')
-          .buttonStyle(ButtonStyleMode.NORMAL)
-          .enabled((this.getAsset()?.strokes?.length ?? 0) > 0)
-          .onClick(async () => {
-            await this.exportHandwritingJson();
-          })
-      }
-      if (this.attachmentStatus.length > 0) {
-        Text(this.attachmentStatus)
-          .fontSize(12)
-          .fontColor('#667085')
-      }
-    }
-    .padding(12)
-    .width('100%')
-    .backgroundColor('#FBFCFD')
-    .border({ width: 1, color: '#D8DDE6' })
-    .borderRadius(8)
+  private aiOutputCount(type: string): number {
+    return this.aiOutputs.filter((output: IdeaAiOutput) => output.outputType === type).length;
   }
 
   private buildAssetPatch(): IdeaAsset | undefined {
-    if (!this.assetLocalUri && !this.assetMimeType && !this.assetPreviewPath && !this.assetType) {
-      return undefined;
-    }
+    if (!this.assetLocalUri && !this.assetMimeType && !this.assetPreviewPath && !this.assetType) return undefined;
     const asset: IdeaAsset = {
       type: this.assetType || 'manual',
       localUri: this.assetLocalUri,
@@ -669,13 +772,9 @@ struct Detail {
   }
 
   private async exportCurrentAttachment(): Promise<void> {
-    const path = this.assetLocalUri;
-    if (path.length === 0) {
-      this.attachmentStatus = '没有可导出的附件';
-      return;
-    }
+    if (this.assetLocalUri.length === 0) { this.attachmentStatus = '没有可导出的附件'; return; }
     try {
-      const uri = await ideaRepository.exportAttachmentToPickedFile(path, this.exportFileNameForPath(path, 'attachment'), [this.fileSuffixChoice(path)]);
+      const uri = await ideaRepository.exportAttachmentToPickedFile(this.assetLocalUri, this.exportFileNameForPath(this.assetLocalUri, 'attachment'), [this.fileSuffixChoice(this.assetLocalUri)]);
       this.attachmentStatus = `附件已导出：${uri}`;
     } catch (err) {
       this.attachmentStatus = `导出附件失败：${String(err)}`;
@@ -683,13 +782,9 @@ struct Detail {
   }
 
   private async exportPreviewImage(): Promise<void> {
-    const path = this.assetPreviewPath;
-    if (path.length === 0) {
-      this.attachmentStatus = '没有可导出的预览图';
-      return;
-    }
+    if (this.assetPreviewPath.length === 0) { this.attachmentStatus = '没有可导出的预览图'; return; }
     try {
-      const uri = await ideaRepository.exportAttachmentToPickedFile(path, this.exportFileNameForPath(path, 'preview.png'), [this.fileSuffixChoice(path)]);
+      const uri = await ideaRepository.exportAttachmentToPickedFile(this.assetPreviewPath, this.exportFileNameForPath(this.assetPreviewPath, 'preview.png'), [this.fileSuffixChoice(this.assetPreviewPath)]);
       this.attachmentStatus = `预览图已导出：${uri}`;
     } catch (err) {
       this.attachmentStatus = `导出预览图失败：${String(err)}`;
@@ -698,17 +793,8 @@ struct Detail {
 
   private async exportHandwritingJson(): Promise<void> {
     const asset = this.getAsset();
-    if (!asset?.strokes || asset.strokes.length === 0) {
-      this.attachmentStatus = '没有可导出的手写笔迹';
-      return;
-    }
-    const payload = JSON.stringify({
-      schema: 'link-storm-handwriting',
-      version: 1,
-      ideaId: this.ideaId,
-      exportedAt: new Date().toISOString(),
-      strokes: asset.strokes
-    }, null, 2);
+    if (!asset?.strokes || asset.strokes.length === 0) { this.attachmentStatus = '没有可导出的手写笔迹'; return; }
+    const payload = JSON.stringify({ schema: 'link-storm-handwriting', version: 1, ideaId: this.ideaId, exportedAt: new Date().toISOString(), strokes: asset.strokes }, null, 2);
     try {
       const uri = await ideaRepository.exportTextToPickedFile(payload, `link-storm-handwriting-${this.safeFileName(this.title || this.ideaId)}.json`, ['JSON|json']);
       this.attachmentStatus = `手写 JSON 已导出：${uri}`;
@@ -727,9 +813,7 @@ struct Detail {
   private fileSuffixChoice(path: string): string {
     const name = this.exportFileNameForPath(path, 'attachment');
     const dot = name.lastIndexOf('.');
-    if (dot < 0 || dot === name.length - 1) {
-      return 'File|*';
-    }
+    if (dot < 0 || dot === name.length - 1) return 'File|*';
     const suffix = name.substring(dot + 1);
     return `${suffix.toUpperCase()}|${suffix}`;
   }
@@ -752,31 +836,21 @@ struct Detail {
       }
     }
     for (const folder of this.folders) {
-      if (!result.some((item: IdeaFolder) => item.id === folder.id)) {
-        result.push(folder);
-      }
+      if (!result.some((item: IdeaFolder) => item.id === folder.id)) result.push(folder);
     }
     return result;
   }
 
   private folderDisplayName(folder: IdeaFolder): string {
-    if (!folder.parentId) {
-      return folder.name;
-    }
+    if (!folder.parentId) return folder.name;
     const parent = this.folders.find((item: IdeaFolder) => item.id === folder.parentId);
     return parent ? `${parent.name} / ${folder.name}` : folder.name;
   }
 
   private syncStatusLabel(status: string): string {
-    if (status === 'pending_sync') {
-      return '待同步';
-    }
-    if (status === 'synced') {
-      return '已同步';
-    }
-    if (status === 'conflict') {
-      return '导入冲突';
-    }
+    if (status === 'pending_sync') return '待同步';
+    if (status === 'synced') return '已同步';
+    if (status === 'conflict') return '冲突';
     return '仅本机';
   }
 
@@ -791,28 +865,17 @@ struct Detail {
   }
 
   private contextSummary(): string {
-    if (!this.idea) {
-      return '';
-    }
+    if (!this.idea) return '';
     const parts: string[] = [];
-    if (this.idea.context.title.length > 0) {
-      parts.push(this.idea.context.title);
-    }
-    if (this.idea.context.url.length > 0) {
-      parts.push(this.idea.context.url);
-    }
-    if (parts.length === 0) {
-      return '无来源链接，已保存为手动上下文。';
-    }
-    return parts.join(' · ');
+    if (this.idea.context.title.length > 0) parts.push(this.idea.context.title);
+    if (this.idea.context.url.length > 0) parts.push(this.idea.context.url);
+    if (parts.length === 0) return '无来源链接，已保存为手动上下文。';
+    return parts.join(' \u00B7 ');
   }
 
   private async openSourceUrl(): Promise<void> {
     const normalized = this.normalizeSourceUrl(this.sourceUrl || this.idea?.context.url || '');
-    if (!normalized) {
-      this.status = '没有可打开的来源链接';
-      return;
-    }
+    if (!normalized) { this.status = '没有可打开的来源链接'; return; }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const want = new Want();
     want.action = 'ohos.want.action.viewData';
@@ -828,10 +891,7 @@ struct Detail {
 
   private async openAttachment(path: string): Promise<void> {
     const normalized = this.normalizeAttachmentPath(path);
-    if (!normalized) {
-      this.attachmentStatus = '没有可打开的附件';
-      return;
-    }
+    if (!normalized) { this.attachmentStatus = '没有可打开的附件'; return; }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const want = new Want();
     want.action = 'ohos.want.action.viewData';
@@ -847,23 +907,15 @@ struct Detail {
 
   private normalizeAttachmentPath(value: string): string {
     const trimmed = value.trim();
-    if (!trimmed) {
-      return '';
-    }
-    if (trimmed.startsWith('file://')) {
-      return new fileUri.FileUri(trimmed).path;
-    }
+    if (!trimmed) return '';
+    if (trimmed.startsWith('file://')) return new fileUri.FileUri(trimmed).path;
     return trimmed;
   }
 
   private normalizeSourceUrl(value: string): string {
     const trimmed = value.trim();
-    if (!trimmed) {
-      return '';
-    }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
-    }
+    if (!trimmed) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
     return `https://${trimmed}`;
   }
 
@@ -871,4 +923,3 @@ struct Detail {
     return this.assetType === 'audio' && this.assetLocalUri.length > 0;
   }
 }
-

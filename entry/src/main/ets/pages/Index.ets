@@ -42,16 +42,16 @@ interface IdeaPatch {
   syncStatus?: string;
 }
 
-const PHONE_BREAKPOINT = 680;
-const TABLET_BREAKPOINT = 1100;
-const CANVAS_WIDTH = 900;
+const BREAKPOINT_SM = 600;
+const BREAKPOINT_MD = 840;
 const PAGE_ROOT_ID = 'link-storm-page-root';
 
 @Entry
 @Component
 struct Index {
-  @State private activeType: IdeaType = IdeaType.DOCUMENT;
-  @State private layoutMode: string = 'desktop';
+  @State private activeType: IdeaType = IdeaType.AUDIO;
+  @State private layoutMode: string = 'compact';
+  @State private hasSetDefaultType: boolean = false;
   @State private title: string = '';
   @State private tags: string = '';
   @State private sourceTitle: string = '';
@@ -106,7 +106,7 @@ struct Index {
     await this.reloadFolders();
     await this.reloadTags();
     this.applyShareCapture();
-    this.applyDefaultMode(CANVAS_WIDTH);
+    this.applyDefaultMode(0);
   }
 
   aboutToDisappear(): void {
@@ -116,7 +116,10 @@ struct Index {
   build() {
     Column() {
       Navigation() {
-        Tabs({ barPosition: this.layoutMode === 'compact' ? BarPosition.End : BarPosition.Start, index: this.currentTabIndex }) {
+        Tabs({
+          barPosition: this.layoutMode === 'desktop' ? BarPosition.Start : BarPosition.End,
+          index: this.currentTabIndex
+        }) {
           TabContent() {
             this.CaptureTab();
           }
@@ -133,6 +136,7 @@ struct Index {
           .tabBar($r('app.string.tab_settings'))
         }
         .barMode(BarMode.Fixed)
+        .vertical(this.layoutMode === 'desktop')
         .width('100%')
         .height('100%')
         .onChange((index: number) => {
@@ -141,7 +145,7 @@ struct Index {
       }
       .title('Link Storm')
       .titleMode(NavigationTitleMode.Mini)
-      .mode(NavigationMode.Stack)
+      .mode(NavigationMode.Auto)
       .width('100%')
       .height('100%')
     }
@@ -185,6 +189,7 @@ struct Index {
             handwritingStrokes: $handwritingStrokes,
             currentStrokePoints: $currentStrokePoints,
             note: this.note,
+            isCompact: this.layoutMode === 'compact',
             onPersistDraft: () => { void this.persistCaptureDraft(); },
             onAudioStart: () => { void this.startAudioCapture(); },
             onAudioPause: () => { void this.pauseAudioCapture(); },
@@ -246,10 +251,12 @@ struct Index {
         .shadow({ radius: 8, color: $r('app.color.card_shadow'), offsetY: 2 })
       }
       .padding(16)
+      .constraintSize({ maxWidth: this.layoutMode === 'desktop' ? 720 : this.layoutMode === 'medium' ? 600 : 0 })
     }
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Auto)
+    .align(Alignment.Top)
   }
 
   @Builder
@@ -371,6 +378,7 @@ struct Index {
               IdeaCardComponent({
                 idea: idea,
                 isSelected: this.isSelected(idea.id),
+                maxTags: this.layoutMode === 'desktop' ? 5 : this.layoutMode === 'medium' ? 3 : 2,
                 onOpen: (id: string) => { void this.openDetail(id); },
                 onToggleFavorite: (id: string) => { void this.toggleFavorite(id); },
                 onToggleArchive: (id: string) => { void this.toggleArchive(id); },
@@ -384,7 +392,7 @@ struct Index {
         .width('100%')
         .layoutWeight(1)
         .scrollBar(BarState.Auto)
-        .lanes(this.layoutMode === 'desktop' ? { minLength: 320, maxLength: 480 } : { minLength: 0, maxLength: 0 })
+        .lanes(this.layoutMode === 'desktop' ? { minLength: 320, maxLength: 480 } : this.layoutMode === 'medium' ? { minLength: 320, maxLength: 400 } : { minLength: 0, maxLength: 0 })
       }
       .onRefreshing(async () => {
         await this.reloadIdeas();
@@ -684,19 +692,23 @@ struct Index {
     if (this.layoutMode === 'compact') {
       return '手机模式';
     }
+    if (this.layoutMode === 'medium') {
+      return '平板模式';
+    }
     return '桌面模式';
   }
 
   private applyDefaultMode(width: number): void {
-    if (width < PHONE_BREAKPOINT) {
-      this.activeType = IdeaType.AUDIO;
+    if (width < BREAKPOINT_SM) {
       this.layoutMode = 'compact';
-    } else if (width >= PHONE_BREAKPOINT && width < TABLET_BREAKPOINT) {
-      this.activeType = IdeaType.HANDWRITING;
-      this.layoutMode = 'compact';
+    } else if (width < BREAKPOINT_MD) {
+      this.layoutMode = 'medium';
     } else {
-      this.activeType = IdeaType.DOCUMENT;
       this.layoutMode = 'desktop';
+    }
+    if (!this.hasSetDefaultType) {
+      this.hasSetDefaultType = true;
+      this.activeType = this.layoutMode === 'desktop' ? IdeaType.DOCUMENT : IdeaType.AUDIO;
     }
   }
 
@@ -708,7 +720,7 @@ struct Index {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const permissionService = PermissionService.getInstance(context);
     const granted = await permissionService.requestMicrophone();
-    this.audioStatus = granted ? '麦克风权限已就绪' : '未获得麦克风权限，可继续使用文档、手写、分享和截图兜底';
+    this.audioStatus = granted ? '麦克风权限已就绪' : '未获得麦克风权限，可继续使用文档和手写';
   }
 
   private async saveDraft(): Promise<void> {

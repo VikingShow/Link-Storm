@@ -6,15 +6,15 @@
     },
     {
       "name": "brand_primary",
-      "value": "#136F63"
+      "value": "#007AFF"
     },
     {
       "name": "brand_light",
-      "value": "#E0F2EE"
+      "value": "#E3F2FD"
     },
     {
       "name": "brand_dark",
-      "value": "#0B4F47"
+      "value": "#0056CC"
     },
     {
       "name": "surface_primary",
@@ -22,7 +22,7 @@
     },
     {
       "name": "surface_secondary",
-      "value": "#FBFCFD"
+      "value": "#F2F2F7"
     },
     {
       "name": "surface_page",
@@ -30,19 +30,19 @@
     },
     {
       "name": "text_primary",
-      "value": "#1F2937"
+      "value": "#1D1D1F"
     },
     {
       "name": "text_secondary",
-      "value": "#697386"
+      "value": "#86868B"
     },
     {
       "name": "text_tertiary",
-      "value": "#667085"
+      "value": "#C7C7CC"
     },
     {
       "name": "text_brand",
-      "value": "#136F63"
+      "value": "#007AFF"
     },
     {
       "name": "border_light",
@@ -66,11 +66,11 @@
     },
     {
       "name": "chip_bg_selected",
-      "value": "#E0F2EE"
+      "value": "#007AFF"
     },
     {
       "name": "chip_text_selected",
-      "value": "#0B4F47"
+      "value": "#FFFFFF"
     },
     {
       "name": "chip_bg_unselected",
@@ -78,7 +78,7 @@
     },
     {
       "name": "chip_text_unselected",
-      "value": "#697386"
+      "value": "#86868B"
     },
     {
       "name": "card_bg",
@@ -86,7 +86,7 @@
     },
     {
       "name": "card_bg_selected",
-      "value": "#F0FBF7"
+      "value": "#E3F2FD"
     },
     {
       "name": "card_shadow",
@@ -94,11 +94,11 @@
     },
     {
       "name": "icon_primary",
-      "value": "#136F63"
+      "value": "#007AFF"
     },
     {
       "name": "icon_secondary",
-      "value": "#697386"
+      "value": "#C7C7CC"
     },
     {
       "name": "divider",
@@ -110,7 +110,7 @@
     },
     {
       "name": "default_tag_color",
-      "value": "#136F63"
+      "value": "#007AFF"
     }
   ]
 }

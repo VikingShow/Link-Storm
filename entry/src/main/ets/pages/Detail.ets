@@ -34,6 +34,7 @@ struct Detail {
   @State private attachmentStatus: string = '';
   @State private sourceSectionExpanded: boolean = true;
   @State private categorySectionExpanded: boolean = false;
+  @State private layoutMode: string = 'compact';
 
   async aboutToAppear(): Promise<void> {
     const params = this.getUIContext().getRouter().getParams() as DetailParams;
@@ -70,7 +71,7 @@ struct Detail {
           }
         }
         .padding(16)
-        .constraintSize({ maxWidth: 720 })
+        .constraintSize({ maxWidth: this.layoutMode === 'desktop' ? 960 : this.layoutMode === 'medium' ? 720 : 0 })
       }
       .width('100%')
       .height('100%')
@@ -83,6 +84,16 @@ struct Detail {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.surface_page'))
+    .onAreaChange((_oldArea, newArea) => {
+      const width = Number(newArea.width);
+      if (width < 600) {
+        this.layoutMode = 'compact';
+      } else if (width < 840) {
+        this.layoutMode = 'medium';
+      } else {
+        this.layoutMode = 'desktop';
+      }
+    })
   }
 
   @Builder

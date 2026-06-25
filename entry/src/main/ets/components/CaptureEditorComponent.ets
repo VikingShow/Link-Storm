@@ -1,8 +1,11 @@
+import { common } from '@kit.AbilityKit';
 import { IdeaType, StrokePoint, HandwritingStroke } from '../model/IdeaModels';
 
-const STROKE_COLOR = '#111827';
 const STROKE_WIDTH = 3;
-const CANVAS_HEIGHT = 240;
+const RECORD_BUTTON_SIZE = 64;
+const SECONDARY_BUTTON_SIZE = 36;
+const STROKE_COLOR_LIGHT = '#111827';
+const STROKE_COLOR_DARK = '#F9FAFB';
 
 @Component
 export struct CaptureEditorComponent {
@@ -16,6 +19,9 @@ export struct CaptureEditorComponent {
   @Link handwritingStrokes: HandwritingStroke[];
   @Link currentStrokePoints: StrokePoint[];
   @Prop note: string = '';
+  @Prop isCompact: boolean = true;
+  @State private recordPulse: number = 0;
+  @State private isDarkMode: boolean = false;
   onPersistDraft: () => void = () => {};
   onAudioStart: () => void = () => {};
   onAudioPause: () => void = () => {};
@@ -29,10 +35,65 @@ export struct CaptureEditorComponent {
   private canvasSettings: RenderingContextSettings = new RenderingContextSettings(true);
   private canvasContext: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.canvasSettings);
   private handwritingCanvasId: string = 'handwriting-canvas';
+  private pulseTimer: number = -1;
+
+  aboutToAppear(): void {
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      this.isDarkMode = context.config.colorMode === 1;
+    } catch (_e) {
+      this.isDarkMode = false;
+    }
+  }
+
+  private canvasStrokeColor(): string {
+    return this.isDarkMode ? STROKE_COLOR_DARK : STROKE_COLOR_LIGHT;
+  }
+
+  aboutToDisappear(): void {
+    if (this.pulseTimer >= 0) {
+      clearInterval(this.pulseTimer);
+    }
+  }
+
+  private canvasHeight(): number {
+    return this.isCompact ? 200 : 280;
+  }
+
+  private editorHeight(): number {
+    return this.isCompact ? 240 : 320;
+  }
+
+  private formatDuration(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const mm = minutes < 10 ? '0' + minutes.toString() : minutes.toString();
+    const ss = seconds < 10 ? '0' + seconds.toString() : seconds.toString();
+    return mm + ':' + ss;
+  }
+
+  private startPulseAnimation(): void {
+    this.recordPulse = 0;
+    if (this.pulseTimer >= 0) {
+      clearInterval(this.pulseTimer);
+    }
+    this.pulseTimer = setInterval(() => {
+      this.recordPulse = (this.recordPulse + 1) % 2;
+    }, 800);
+  }
+
+  private stopPulseAnimation(): void {
+    if (this.pulseTimer >= 0) {
+      clearInterval(this.pulseTimer);
+      this.pulseTimer = -1;
+    }
+    this.recordPulse = 0;
+  }
 
   build() {
     Column({ space: 0 }) {
-      Tabs({ barPosition: BarPosition.Start }) {
+      Tabs({ barPosition: BarPosition.Start, index: this.activeTabIndex() }) {
         TabContent() {
           this.DocumentEditor();
         }
@@ -54,15 +115,21 @@ export struct CaptureEditorComponent {
         this.activeType = types[index];
         this.onPersistDraft();
       })
-      .height(280)
+      .height(this.editorHeight())
     }
+  }
+
+  private activeTabIndex(): number {
+    if (this.activeType === IdeaType.AUDIO) return 1;
+    if (this.activeType === IdeaType.HANDWRITING) return 2;
+    return 0;
   }
 
   @Builder
   private DocumentEditor() {
     Column({ space: 8 }) {
       TextArea({ placeholder: $r('app.string.document_placeholder'), text: this.documentText })
-        .height(160)
+        .height(this.isCompact ? 140 : 180)
         .onChange((value: string) => {
           this.documentText = value;
           this.onPersistDraft();
@@ -83,68 +150,138 @@ export struct CaptureEditorComponent {
 
   @Builder
   private AudioEditor() {
-    Column({ space: 10 }) {
-      Text(this.audioStatus)
-        .fontSize(14)
-        .fontColor($r('app.color.text_secondary'))
+    Column({ space: 16 }) {
+      Column({ space: 8 }) {
+        Row() {
+          Column() {
+            Stack() {
+              if (this.audioRecorderState === 'recording') {
+                Circle()
+                  .width(RECORD_BUTTON_SIZE + 8)
+                  .height(RECORD_BUTTON_SIZE + 8)
+                  .fill(Color.Transparent)
+                  .stroke($r('app.color.brand_primary'))
+                  .strokeWidth(2)
+                  .opacity(this.recordPulse === 0 ? 0.6 : 0.2)
+              }
+              Circle()
+                .width(RECORD_BUTTON_SIZE)
+                .height(RECORD_BUTTON_SIZE)
+                .fill(this.audioRecorderState === 'idle' ? $r('app.color.brand_primary') :
+                  this.audioRecorderState === 'recording' ? $r('app.color.brand_primary') :
+                    Color.Transparent)
+                .stroke(this.audioRecorderState === 'paused' ? $r('app.color.brand_primary') : Color.Transparent)
+                .strokeWidth(this.audioRecorderState === 'paused' ? 2 : 0)
+              Text(this.audioRecorderState === 'recording' ? '\u275A\u275A' :
+                this.audioRecorderState === 'paused' ? '\u25B6' : '\uD83C\uDFA4')
+                .fontSize(this.audioRecorderState === 'idle' ? 28 : 20)
+                .fontColor(this.audioRecorderState === 'paused' ? $r('app.color.brand_primary') : Color.White)
+            }
+            .width(RECORD_BUTTON_SIZE + 8)
+            .height(RECORD_BUTTON_SIZE + 8)
+            .onClick(() => {
+              if (this.audioRecorderState === 'idle') {
+                this.onAudioStart();
+                this.startPulseAnimation();
+              } else if (this.audioRecorderState === 'recording') {
+                this.onAudioPause();
+                this.stopPulseAnimation();
+              } else if (this.audioRecorderState === 'paused') {
+                this.onAudioResume();
+                this.startPulseAnimation();
+              }
+            })
+          }
+          .alignItems(HorizontalAlign.Center)
+        }
         .width('100%')
+        .justifyContent(FlexAlign.Center)
 
-      if (this.audioRecorderState === 'recording') {
-        Progress({ value: 0, total: 100, type: ProgressType.Linear })
-          .color($r('app.color.brand_primary'))
-          .width('100%')
-      }
-
-      Row({ space: 8 }) {
-        Button($r('app.string.start_record'))
-          .fontSize(13)
-          .height(36)
-          .backgroundColor($r('app.color.brand_primary'))
-          .fontColor(Color.White)
-          .borderRadius(18)
-          .enabled(this.audioRecorderState === 'idle')
-          .onClick(() => this.onAudioStart())
-        Button($r('app.string.pause_record'))
-          .fontSize(13)
-          .height(36)
-          .backgroundColor($r('app.color.surface_secondary'))
-          .fontColor($r('app.color.text_primary'))
-          .borderRadius(18)
-          .enabled(this.audioRecorderState === 'recording')
-          .onClick(() => this.onAudioPause())
-        Button($r('app.string.resume_record'))
-          .fontSize(13)
-          .height(36)
-          .backgroundColor($r('app.color.surface_secondary'))
-          .fontColor($r('app.color.text_primary'))
-          .borderRadius(18)
-          .enabled(this.audioRecorderState === 'paused')
-          .onClick(() => this.onAudioResume())
-        Button($r('app.string.stop_record'))
-          .fontSize(13)
-          .height(36)
-          .backgroundColor($r('app.color.brand_primary'))
-          .fontColor(Color.White)
-          .borderRadius(18)
-          .enabled(this.audioRecorderState === 'recording' || this.audioRecorderState === 'paused')
-          .onClick(() => this.onAudioStop())
-        Button($r('app.string.cancel_record'))
-          .fontSize(13)
-          .height(36)
-          .backgroundColor($r('app.color.surface_secondary'))
-          .fontColor($r('app.color.danger'))
-          .borderRadius(18)
-          .enabled(this.audioRecorderState === 'recording' || this.audioRecorderState === 'paused')
-          .onClick(() => this.onAudioCancel())
+        if (this.audioRecorderState === 'idle') {
+          Text($r('app.string.tap_to_record'))
+            .fontSize(13)
+            .fontColor($r('app.color.text_secondary'))
+        } else {
+          Row({ space: 8 }) {
+            Text(this.formatDuration(this.audioDurationMs))
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Text(this.audioRecorderState === 'paused' ? '(暂停中)' : '')
+              .fontSize(13)
+              .fontColor($r('app.color.text_tertiary'))
+          }
+        }
       }
       .width('100%')
+      .alignItems(HorizontalAlign.Center)
 
-      if (this.audioPath.length > 0) {
+      if (this.audioRecorderState === 'recording' || this.audioRecorderState === 'paused') {
+        Row({ space: 24 }) {
+          Row() {
+            Column() {
+              Circle()
+                .width(SECONDARY_BUTTON_SIZE)
+                .height(SECONDARY_BUTTON_SIZE)
+                .fill($r('app.color.brand_primary'))
+              Text('\u2713')
+                .fontSize(16)
+                .fontColor(Color.White)
+            }
+            .width(SECONDARY_BUTTON_SIZE)
+            .height(SECONDARY_BUTTON_SIZE)
+            .alignItems(HorizontalAlign.Center)
+            .justifyContent(FlexAlign.Center)
+            .borderRadius(SECONDARY_BUTTON_SIZE / 2)
+            .backgroundColor($r('app.color.brand_primary'))
+            .onClick(() => {
+              this.stopPulseAnimation();
+              this.onAudioStop();
+            })
+            Text($r('app.string.save_record'))
+              .fontSize(11)
+              .fontColor($r('app.color.text_secondary'))
+              .margin({ top: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+
+          Row() {
+            Column() {
+              Circle()
+                .width(SECONDARY_BUTTON_SIZE)
+                .height(SECONDARY_BUTTON_SIZE)
+                .fill($r('app.color.danger_bg'))
+              Text('\u2715')
+                .fontSize(16)
+                .fontColor($r('app.color.danger'))
+            }
+            .width(SECONDARY_BUTTON_SIZE)
+            .height(SECONDARY_BUTTON_SIZE)
+            .alignItems(HorizontalAlign.Center)
+            .justifyContent(FlexAlign.Center)
+            .borderRadius(SECONDARY_BUTTON_SIZE / 2)
+            .backgroundColor($r('app.color.danger_bg'))
+            .onClick(() => {
+              this.stopPulseAnimation();
+              this.onAudioCancel();
+            })
+            Text($r('app.string.cancel_record'))
+              .fontSize(11)
+              .fontColor($r('app.color.text_secondary'))
+              .margin({ top: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+      }
+
+      if (this.audioPath.length > 0 && this.audioRecorderState === 'idle') {
         Row() {
-          Text('\u{1F3B5}')
+          Text('\uD83C\uDFB5')
             .fontSize(16)
-          Text(Math.round(this.audioDurationMs / 1000).toString() + 's')
-            .fontSize(12)
+          Text(this.formatDuration(this.audioDurationMs))
+            .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
             .margin({ left: 4 })
         }
@@ -193,7 +330,7 @@ export struct CaptureEditorComponent {
         Canvas(this.canvasContext)
           .id(this.handwritingCanvasId)
           .width('100%')
-          .height(CANVAS_HEIGHT)
+          .height(this.canvasHeight())
           .backgroundColor($r('app.color.surface_primary'))
           .borderRadius(8)
           .onReady(() => {
@@ -204,7 +341,7 @@ export struct CaptureEditorComponent {
           })
       }
       .width('100%')
-      .height(CANVAS_HEIGHT)
+      .height(this.canvasHeight())
     }
     .padding(12)
     .width('100%')
@@ -230,7 +367,7 @@ export struct CaptureEditorComponent {
 
     if (event.type === TouchType.Down) {
       this.currentStrokePoints = [canvasPoint];
-      this.handwritingStrokes = this.handwritingStrokes.concat([{ color: STROKE_COLOR, width: STROKE_WIDTH, points: this.currentStrokePoints }]);
+      this.handwritingStrokes = this.handwritingStrokes.concat([{ color: '', width: STROKE_WIDTH, points: this.currentStrokePoints }]);
       this.redrawHandwriting();
       this.onPersistDraft();
       return;
@@ -238,7 +375,7 @@ export struct CaptureEditorComponent {
     if (event.type === TouchType.Move) {
       if (this.currentStrokePoints.length === 0) {
         this.currentStrokePoints = [canvasPoint];
-        this.handwritingStrokes = this.handwritingStrokes.concat([{ color: STROKE_COLOR, width: STROKE_WIDTH, points: this.currentStrokePoints }]);
+        this.handwritingStrokes = this.handwritingStrokes.concat([{ color: '', width: STROKE_WIDTH, points: this.currentStrokePoints }]);
       } else {
         this.currentStrokePoints.push(canvasPoint);
       }
@@ -258,10 +395,10 @@ export struct CaptureEditorComponent {
 
   private redrawHandwriting(): void {
     const ctx = this.canvasContext;
-    ctx.clearRect(0, 0, 900, CANVAS_HEIGHT);
+    ctx.clearRect(0, 0, 900, this.canvasHeight());
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = STROKE_COLOR;
+    ctx.strokeStyle = this.canvasStrokeColor();
     ctx.lineWidth = STROKE_WIDTH;
     for (const stroke of this.handwritingStrokes) {
       if (stroke.points.length === 0) {

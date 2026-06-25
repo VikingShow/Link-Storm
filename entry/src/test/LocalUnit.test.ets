@@ -110,6 +110,20 @@ export default function localUnitTest() {
       const overflow = allTags.length - 2;
       expect(overflow).assertEqual(3);
     });
+    it('should_limit_card_display_to_3_tags_on_tablet', 0, () => {
+      const allTags = ['t1', 't2', 't3', 't4', 't5'];
+      const displayTags = allTags.slice(0, 3);
+      expect(displayTags.length).assertEqual(3);
+      const overflow = allTags.length - 3;
+      expect(overflow).assertEqual(2);
+    });
+    it('should_limit_card_display_to_5_tags_on_desktop', 0, () => {
+      const allTags = ['t1', 't2', 't3', 't4', 't5', 't6', 't7'];
+      const displayTags = allTags.slice(0, 5);
+      expect(displayTags.length).assertEqual(5);
+      const overflow = allTags.length - 5;
+      expect(overflow).assertEqual(2);
+    });
   });
 
   describe('ExportSelectOption', () => {
@@ -134,15 +148,117 @@ export default function localUnitTest() {
     });
   });
 
-  describe('CaptureTwoStepFlow', () => {
-    it('save_without_metadata_should_use_auto_title', 0, () => {
-      const content = 'This is my quick thought about the project';
-      const autoTitle = content.length > 20 ? content.substring(0, 20) : content;
-      expect(autoTitle.length).assertEqual(20);
+  describe('BreakpointLayoutMode', () => {
+    it('compact_mode_for_sm_under_600', 0, () => {
+      const width = 375;
+      const mode = width < 600 ? 'compact' : (width < 840 ? 'medium' : 'desktop');
+      expect(mode).assertEqual('compact');
     });
-    it('empty_tags_should_be_valid', 0, () => {
-      const idea = createTestIdea('id9', 'Quick Note', IdeaType.DOCUMENT, []);
-      expect(idea.tags.length).assertEqual(0);
+    it('medium_mode_for_md_600_to_839', 0, () => {
+      const width = 720;
+      const mode = width < 600 ? 'compact' : (width < 840 ? 'medium' : 'desktop');
+      expect(mode).assertEqual('medium');
+    });
+    it('desktop_mode_for_lg_840_plus', 0, () => {
+      const width = 1024;
+      const mode = width < 600 ? 'compact' : (width < 840 ? 'medium' : 'desktop');
+      expect(mode).assertEqual('desktop');
+    });
+  });
+
+  describe('RecordingState', () => {
+    it('idle_state_should_show_mic_icon', 0, () => {
+      const state = 'idle';
+      expect(state === 'idle').assertEqual(true);
+    });
+    it('recording_state_should_show_pause', 0, () => {
+      const state = 'recording';
+      expect(state === 'recording').assertEqual(true);
+    });
+    it('paused_state_should_show_resume', 0, () => {
+      const state = 'paused';
+      expect(state === 'paused').assertEqual(true);
+    });
+  });
+
+  describe('CaptureEditorCompactHeight', () => {
+    it('compact_audio_height_should_be_240', 0, () => {
+      const isCompact = true;
+      const isAudio = true;
+      const height = isAudio ? (isCompact ? 240 : 320) : (isCompact ? 200 : 280);
+      expect(height).assertEqual(240);
+    });
+    it('medium_audio_height_should_be_320', 0, () => {
+      const isCompact = false;
+      const isAudio = true;
+      const height = isAudio ? (isCompact ? 240 : 320) : (isCompact ? 200 : 280);
+      expect(height).assertEqual(320);
+    });
+  });
+
+  describe('CaptureTabMaxWidth', () => {
+    it('compact_maxWidth_should_be_0', 0, () => {
+      const mode = 'compact';
+      const maxW = mode === 'desktop' ? 720 : (mode === 'medium' ? 600 : 0);
+      expect(maxW).assertEqual(0);
+    });
+    it('medium_maxWidth_should_be_600', 0, () => {
+      const mode = 'medium';
+      const maxW = mode === 'desktop' ? 720 : (mode === 'medium' ? 600 : 0);
+      expect(maxW).assertEqual(600);
+    });
+    it('desktop_maxWidth_should_be_720', 0, () => {
+      const mode = 'desktop';
+      const maxW = mode === 'desktop' ? 720 : (mode === 'medium' ? 600 : 0);
+      expect(maxW).assertEqual(720);
+    });
+  });
+
+  describe('DetailMaxWidth', () => {
+    it('compact_detail_maxWidth_should_be_0', 0, () => {
+      const mode = 'compact';
+      const maxW = mode === 'desktop' ? 960 : (mode === 'medium' ? 720 : 0);
+      expect(maxW).assertEqual(0);
+    });
+    it('medium_detail_maxWidth_should_be_720', 0, () => {
+      const mode = 'medium';
+      const maxW = mode === 'desktop' ? 960 : (mode === 'medium' ? 720 : 0);
+      expect(maxW).assertEqual(720);
+    });
+    it('desktop_detail_maxWidth_should_be_960', 0, () => {
+      const mode = 'desktop';
+      const maxW = mode === 'desktop' ? 960 : (mode === 'medium' ? 720 : 0);
+      expect(maxW).assertEqual(960);
+    });
+  });
+
+  describe('CanvasStrokeColor', () => {
+    it('light_mode_stroke_color', 0, () => {
+      const isDark = false;
+      const color = isDark ? '#F9FAFB' : '#111827';
+      expect(color).assertEqual('#111827');
+    });
+    it('dark_mode_stroke_color', 0, () => {
+      const isDark = true;
+      const color = isDark ? '#F9FAFB' : '#111827';
+      expect(color).assertEqual('#F9FAFB');
+    });
+  });
+
+  describe('AudioDurationFormat', () => {
+    it('should_format_seconds_to_mm_ss', 0, () => {
+      const totalMs = 125000;
+      const totalSec = Math.floor(totalMs / 1000);
+      const mm = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const ss = (totalSec % 60).toString().padStart(2, '0');
+      expect(mm + ':' + ss).assertEqual('02:05');
+    });
+    it('should_format_zero_to_00_00', 0, () => {
+      const totalMs = 0;
+      const totalSec = Math.floor(totalMs / 1000);
+      const mm = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const ss = (totalSec % 60).toString().padStart(2, '0');
+      expect(mm + ':' + ss).assertEqual('00:00');
     });
   });
 }

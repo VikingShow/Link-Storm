@@ -6,43 +6,43 @@
     },
     {
       "name": "brand_primary",
-      "value": "#2DD4A8"
+      "value": "#409EFF"
     },
     {
       "name": "brand_light",
-      "value": "#1A3D37"
+      "value": "#1A3A5C"
     },
     {
       "name": "brand_dark",
-      "value": "#5EEAD4"
+      "value": "#6DB3F8"
     },
     {
       "name": "surface_primary",
-      "value": "#1F2937"
+      "value": "#1C1C1E"
     },
     {
       "name": "surface_secondary",
-      "value": "#1A1F2B"
+      "value": "#2C2C2E"
     },
     {
       "name": "surface_page",
-      "value": "#111827"
+      "value": "#000000"
     },
     {
       "name": "text_primary",
-      "value": "#F9FAFB"
+      "value": "#F5F5F7"
     },
     {
       "name": "text_secondary",
-      "value": "#9CA3AF"
+      "value": "#98989D"
     },
     {
       "name": "text_tertiary",
-      "value": "#9CA3AF"
+      "value": "#636366"
     },
     {
       "name": "text_brand",
-      "value": "#2DD4A8"
+      "value": "#409EFF"
     },
     {
       "name": "border_light",
@@ -66,11 +66,11 @@
     },
     {
       "name": "chip_bg_selected",
-      "value": "#1A3D37"
+      "value": "#409EFF"
     },
     {
       "name": "chip_text_selected",
-      "value": "#5EEAD4"
+      "value": "#FFFFFF"
     },
     {
       "name": "chip_bg_unselected",
@@ -78,15 +78,15 @@
     },
     {
       "name": "chip_text_unselected",
-      "value": "#9CA3AF"
+      "value": "#98989D"
     },
     {
       "name": "card_bg",
-      "value": "#1F2937"
+      "value": "#1C1C1E"
     },
     {
       "name": "card_bg_selected",
-      "value": "#1A3D37"
+      "value": "#1A3A5C"
     },
     {
       "name": "card_shadow",
@@ -94,11 +94,11 @@
     },
     {
       "name": "icon_primary",
-      "value": "#2DD4A8"
+      "value": "#409EFF"
     },
     {
       "name": "icon_secondary",
-      "value": "#9CA3AF"
+      "value": "#636366"
     },
     {
       "name": "divider",
@@ -110,7 +110,7 @@
     },
     {
       "name": "default_tag_color",
-      "value": "#2DD4A8"
+      "value": "#409EFF"
     }
   ]
 }

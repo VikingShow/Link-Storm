@@ -221,6 +221,14 @@
       "value": "取消"
     },
     {
+      "name": "tap_to_record",
+      "value": "点击录音"
+    },
+    {
+      "name": "save_record",
+      "value": "保存"
+    },
+    {
       "name": "undo_stroke",
       "value": "撤销"
     },
